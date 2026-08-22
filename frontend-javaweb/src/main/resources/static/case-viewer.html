@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIfTI 影像查看</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #050505;
+            color: #e5edf5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            min-height: 64px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #26313d;
+            background: #101820;
+        }
+
+        .case-id {
+            min-width: 120px;
+            font-weight: 700;
+        }
+
+        .status {
+            color: #9db0c4;
+            margin-right: 8px;
+        }
+
+        .status.error {
+            color: #ff6b5f;
+        }
+
+        button {
+            border: 1px solid #35495c;
+            border-radius: 4px;
+            background: #182532;
+            color: #e5edf5;
+            padding: 7px 10px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #243548;
+        }
+
+        .opacity-text {
+            color: #9db0c4;
+            min-width: 92px;
+        }
+
+        .viewer {
+            width: 100vw;
+            height: calc(100vh - 64px);
+        }
+
+        #gl {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<header class="toolbar">
+    <div class="case-id">Case: <span id="caseIdText">-</span></div>
+    <div id="statusText" class="status">加载中</div>
+    <button id="multiBtn" type="button">多平面视图</button>
+    <button id="axialBtn" type="button">Axial</button>
+    <button id="coronalBtn" type="button">Coronal</button>
+    <button id="sagittalBtn" type="button">Sagittal</button>
+    <button id="renderBtn" type="button">3D / Volume</button>
+    <button id="opacityDownBtn" type="button">降低 mask 透明度</button>
+    <button id="opacityUpBtn" type="button">增加 mask 透明度</button>
+    <span id="opacityText" class="opacity-text">Mask: 45%</span>
+    <button id="resetBtn" type="button">重置视图</button>
+</header>
+<main class="viewer">
+    <canvas id="gl"></canvas>
+</main>
+
+<script type="module">
+    import { Niivue } from "https://unpkg.com/@niivue/niivue@0.57.0/dist/index.js";
+
+    const params = new URLSearchParams(window.location.search);
+    const caseId = params.get("caseId") || "";
+    const caseIdText = document.getElementById("caseIdText");
+    const statusText = document.getElementById("statusText");
+    const opacityText = document.getElementById("opacityText");
+    let nv;
+    let maskOpacity = 0.45;
+
+    caseIdText.textContent = caseId || "-";
+
+    function setStatus(message, isError = false) {
+        statusText.textContent = message;
+        statusText.classList.toggle("error", isError);
+    }
+
+    function requireCaseId() {
+        if (!caseId) {
+            throw new Error("URL 中缺少 caseId。");
+        }
+    }
+
+    async function fetchViewerFiles() {
+        const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/viewer-files`);
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(payload?.message || `viewer-files 接口失败：${response.status}`);
+        }
+        if (!payload.imageUrl) {
+            throw new Error("缺少原始 CT 图像，无法进行 overlay 显示。");
+        }
+        return payload;
+    }
+
+    function setSliceType(typeName) {
+        if (!nv || typeof nv[typeName] !== "number") {
+            return;
+        }
+        nv.setSliceType(nv[typeName]);
+    }
+
+    function applyMaskOpacity() {
+        maskOpacity = Math.max(0, Math.min(1, maskOpacity));
+        opacityText.textContent = `Mask: ${Math.round(maskOpacity * 100)}%`;
+        if (!nv) {
+            return;
+        }
+        if (typeof nv.setOpacity === "function") {
+            nv.setOpacity(1, maskOpacity);
+            return;
+        }
+        if (nv.volumes?.[1]) {
+            nv.volumes[1].opacity = maskOpacity;
+            nv.updateGLVolume?.();
+            nv.drawScene?.();
+        }
+    }
+
+    async function loadViewer() {
+        requireCaseId();
+        setStatus("正在获取影像文件");
+        const files = await fetchViewerFiles();
+
+        setStatus("正在加载 NIfTI");
+        nv = new Niivue({
+            backColor: [0, 0, 0, 1],
+            show3Dcrosshair: true,
+            isResizeCanvas: true
+        });
+        await nv.attachTo("gl");
+        await nv.loadVolumes([
+            {
+                url: files.imageUrl,
+                name: "image.nii.gz",
+                colormap: "gray",
+                opacity: 1.0,
+                cal_min: -200,
+                cal_max: 300
+            },
+            {
+                url: files.segUrl,
+                name: "seg.nii.gz",
+                colormap: "red",
+                opacity: maskOpacity,
+                cal_min: 0.5,
+                cal_max: 1
+            }
+        ]);
+        setSliceType("sliceTypeMultiplanar");
+        applyMaskOpacity();
+        setStatus("加载成功");
+    }
+
+    document.getElementById("multiBtn").addEventListener("click", () => setSliceType("sliceTypeMultiplanar"));
+    document.getElementById("axialBtn").addEventListener("click", () => setSliceType("sliceTypeAxial"));
+    document.getElementById("coronalBtn").addEventListener("click", () => setSliceType("sliceTypeCoronal"));
+    document.getElementById("sagittalBtn").addEventListener("click", () => setSliceType("sliceTypeSagittal"));
+    document.getElementById("renderBtn").addEventListener("click", () => setSliceType("sliceTypeRender"));
+    document.getElementById("opacityDownBtn").addEventListener("click", () => {
+        maskOpacity -= 0.1;
+        applyMaskOpacity();
+    });
+    document.getElementById("opacityUpBtn").addEventListener("click", () => {
+        maskOpacity += 0.1;
+        applyMaskOpacity();
+    });
+    document.getElementById("resetBtn").addEventListener("click", () => {
+        nv?.resetView?.();
+        setSliceType("sliceTypeMultiplanar");
+    });
+
+    loadViewer().catch((error) => {
+        setStatus(error.message || "NIfTI 加载失败", true);
+    });
+</script>
+</body>
+</html>

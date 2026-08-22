@@ -1,0 +1,102 @@
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    password_hash VARCHAR(120) NOT NULL,
+    display_name VARCHAR(80) NOT NULL,
+    email VARCHAR(120),
+    phone VARCHAR(20) NOT NULL,
+    patient_id_card VARCHAR(32),
+    role VARCHAR(32) NOT NULL DEFAULT 'PATIENT',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_users_username (username),
+    UNIQUE KEY uk_users_email (email),
+    UNIQUE KEY uk_users_phone (phone),
+    UNIQUE KEY uk_users_patient_id_card (patient_id_card),
+    CONSTRAINT chk_users_role CHECK (role IN ('DOCTOR', 'PATIENT', 'ADMIN'))
+);
+
+CREATE TABLE IF NOT EXISTS ct_images (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id BIGINT NOT NULL,
+    patient_name VARCHAR(80) NOT NULL,
+    patient_id_card VARCHAR(32) NOT NULL,
+    remark VARCHAR(500),
+    original_filename VARCHAR(255) NOT NULL,
+    stored_filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT '未分析',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ct_images_doctor_id (doctor_id),
+    INDEX idx_ct_images_patient_id_card (patient_id_card),
+    CONSTRAINT fk_ct_images_doctor FOREIGN KEY (doctor_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS analysis_tasks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    ct_image_id BIGINT NOT NULL,
+    doctor_id BIGINT NOT NULL,
+    requester_id BIGINT,
+    jetson_case_id VARCHAR(120),
+    mode VARCHAR(32) NOT NULL DEFAULT 'abdomen',
+    device VARCHAR(32) NOT NULL DEFAULT 'cuda',
+    status VARCHAR(32) NOT NULL DEFAULT '排队中',
+    progress INT NOT NULL DEFAULT 0,
+    stage VARCHAR(64),
+    message VARCHAR(500),
+    failed_reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_analysis_tasks_ct_image_id (ct_image_id),
+    INDEX idx_analysis_tasks_status (status),
+    INDEX idx_analysis_tasks_jetson_case_id (jetson_case_id),
+    CONSTRAINT fk_analysis_tasks_ct_image FOREIGN KEY (ct_image_id) REFERENCES ct_images(id),
+    CONSTRAINT fk_analysis_tasks_doctor FOREIGN KEY (doctor_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS analysis_results (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id BIGINT NOT NULL,
+    ct_image_id BIGINT NOT NULL,
+    doctor_id BIGINT NOT NULL,
+    result_json_path VARCHAR(500) NOT NULL,
+    metrics_json_path VARCHAR(500),
+    risk_json_path VARCHAR(500),
+    label_map_json_path VARCHAR(500),
+    report_md_path VARCHAR(500),
+    overlay_path VARCHAR(500),
+    tumor_volume_ml DECIMAL(12,3),
+    risk_level VARCHAR(32),
+    summary_json TEXT,
+    patient_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    doctor_review_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    doctor_review_note TEXT,
+    doctor_reviewed_at TIMESTAMP NULL,
+    reviewed_by BIGINT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_analysis_results_task_id (task_id),
+    INDEX idx_analysis_results_doctor_id (doctor_id),
+    INDEX idx_analysis_results_ct_image_id (ct_image_id),
+    INDEX idx_analysis_results_patient_visible (patient_visible),
+    CONSTRAINT fk_analysis_results_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id),
+    CONSTRAINT fk_analysis_results_ct_image FOREIGN KEY (ct_image_id) REFERENCES ct_images(id),
+    CONSTRAINT fk_analysis_results_doctor FOREIGN KEY (doctor_id) REFERENCES users(id),
+    CONSTRAINT fk_analysis_results_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS report_chat_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id BIGINT NOT NULL,
+    doctor_id BIGINT NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_report_chat_task_doctor (task_id, doctor_id, created_at),
+    CONSTRAINT chk_report_chat_role CHECK (role IN ('user', 'assistant'))
+);

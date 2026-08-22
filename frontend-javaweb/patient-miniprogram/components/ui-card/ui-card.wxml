@@ -1,0 +1,3 @@
+<view class="ui-card ui-card-{{tone}} {{padded ? 'is-padded' : ''}}">
+  <slot></slot>
+</view>

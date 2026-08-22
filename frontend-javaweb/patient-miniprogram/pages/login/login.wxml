@@ -1,0 +1,51 @@
+<view class="page-shell login-page">
+  <view class="login-hero">
+    <text class="page-title">PPGL 报告助手</text>
+    <text class="page-subtitle">登录后查看与你身份证号匹配的报告，并咨询 AI 报告助手。</text>
+  </view>
+
+  <view class="card login-card">
+    <view class="auth-tabs">
+      <button class="{{mode === 'login' ? 'active' : ''}}" bindtap="switchMode" data-mode="login">登录</button>
+      <button class="{{mode === 'register' ? 'active' : ''}}" bindtap="switchMode" data-mode="register">注册</button>
+    </view>
+
+    <view wx:if="{{mode === 'login'}}" class="form-block">
+      <label class="field">
+        <text>账号或手机号</text>
+        <input value="{{account}}" placeholder="请输入账号或手机号" bindinput="onInput" data-field="account" />
+      </label>
+      <label class="field">
+        <text>密码</text>
+        <input value="{{password}}" password placeholder="请输入密码" bindinput="onInput" data-field="password" />
+      </label>
+    </view>
+
+    <view wx:else class="form-block">
+      <label class="field">
+        <text>账号</text>
+        <input value="{{username}}" placeholder="3-32 位字母、数字或下划线" bindinput="onInput" data-field="username" />
+      </label>
+      <label class="field">
+        <text>姓名</text>
+        <input value="{{displayName}}" placeholder="请输入真实姓名" bindinput="onInput" data-field="displayName" />
+      </label>
+      <label class="field">
+        <text>手机号</text>
+        <input value="{{phone}}" type="number" maxlength="11" placeholder="请输入 11 位手机号" bindinput="onInput" data-field="phone" />
+      </label>
+      <label class="field">
+        <text>身份证号</text>
+        <input value="{{patientIdCard}}" maxlength="18" placeholder="用于匹配你的病例报告" bindinput="onInput" data-field="patientIdCard" />
+      </label>
+      <label class="field">
+        <text>密码</text>
+        <input value="{{password}}" password placeholder="至少 6 位" bindinput="onInput" data-field="password" />
+      </label>
+    </view>
+
+    <button class="primary-btn submit-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="submit">
+      {{mode === 'login' ? '登录' : '注册'}}
+    </button>
+  </view>
+</view>

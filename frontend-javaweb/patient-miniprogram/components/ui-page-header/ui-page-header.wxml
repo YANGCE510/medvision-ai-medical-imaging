@@ -1,0 +1,8 @@
+<view class="ui-page-header">
+  <button wx:if="{{showBack}}" class="ui-page-header-back" aria-label="返回" bindtap="handleBack">‹</button>
+  <view class="ui-page-header-copy">
+    <text class="ui-page-header-title">{{title}}</text>
+    <text wx:if="{{subtitle}}" class="ui-page-header-subtitle">{{subtitle}}</text>
+  </view>
+  <slot name="action"></slot>
+</view>

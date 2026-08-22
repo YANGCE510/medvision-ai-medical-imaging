@@ -1,0 +1,5 @@
+App({
+  globalData: {
+    currentUser: null
+  }
+});

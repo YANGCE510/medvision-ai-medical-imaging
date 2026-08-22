@@ -1,0 +1,54 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/reports/reports",
+    "pages/follow-ups/follow-ups",
+    "pages/feedbacks/feedbacks",
+    "pages/report-detail/report-detail",
+    "pages/follow-up/follow-up",
+    "pages/feedback/feedback",
+    "pages/chat/chat"
+  ],
+  "window": {
+    "navigationBarTitleText": "报告助手",
+    "navigationBarBackgroundColor": "#f7f9fc",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7fb"
+  },
+  "tabBar": {
+    "color": "#8491a5",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/reports/reports",
+        "text": "报告",
+        "iconPath": "assets/tab/report.png",
+        "selectedIconPath": "assets/tab/report-active.png"
+      },
+      {
+        "pagePath": "pages/follow-ups/follow-ups",
+        "text": "回访",
+        "iconPath": "assets/tab/follow.png",
+        "selectedIconPath": "assets/tab/follow-active.png"
+      },
+      {
+        "pagePath": "pages/feedbacks/feedbacks",
+        "text": "反馈",
+        "iconPath": "assets/tab/feedback.png",
+        "selectedIconPath": "assets/tab/feedback-active.png"
+      }
+    ]
+  },
+  "usingComponents": {
+    "ui-button": "/components/ui-button/ui-button",
+    "ui-card": "/components/ui-card/ui-card",
+    "ui-empty-state": "/components/ui-empty-state/ui-empty-state",
+    "ui-loading": "/components/ui-loading/ui-loading",
+    "ui-badge": "/components/ui-badge/ui-badge",
+    "ui-page-header": "/components/ui-page-header/ui-page-header"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,93 @@
+# Private config / credentials
+.env
+.env.*
+!.env.example
+.envrc
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+**/project.private.config.json
+*.local
+
+# Medical images / private cases
+*.nii
+*.nii.gz
+*.dcm
+*.dicom
+*.mha
+*.mhd
+*.nrrd
+*.npy
+*.npz
+*.jsonl
+dataset/
+datasets/
+data/
+input/
+uploads/
+jobs/
+cases/
+agent_cases/
+
+# Model weights / binary inference engines
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.engine
+*.safetensors
+ckpt/
+checkpoints/
+models/
+engines/
+
+# Large archives / generated outputs
+*.zip
+*.tar
+*.tar.gz
+*.7z
+outputs/
+runs/
+jetson_jobs/
+logs/
+*.log
+*.out
+*.pid
+*.sqlite
+*.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
+.venv/
+venv/
+
+# Java / Maven
+target/
+.m2/
+
+# Node / Vite
+node_modules/
+dist/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+._*
+.idea/
+.vscode/*
+!.vscode/extensions.json

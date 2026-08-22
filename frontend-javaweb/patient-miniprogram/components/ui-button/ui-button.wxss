@@ -1,0 +1,58 @@
+:host {
+  display: inline-flex;
+}
+
+:host(.is-block),
+.ui-button.is-block {
+  width: 100%;
+}
+
+.ui-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0 28rpx;
+  border: 1rpx solid transparent;
+  border-radius: var(--radius-pill, 999rpx);
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ui-button::after {
+  border: 0;
+}
+
+.ui-button-medium {
+  height: 80rpx;
+}
+
+.ui-button-small {
+  height: 64rpx;
+  padding: 0 22rpx;
+  font-size: 24rpx;
+}
+
+.ui-button-primary {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.ui-button-secondary {
+  color: var(--color-primary);
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.ui-button-danger {
+  color: var(--color-on-primary);
+  background: var(--color-danger);
+}
+
+.ui-button[disabled] {
+  color: var(--color-on-primary);
+  background: var(--color-disabled);
+  opacity: 1;
+}

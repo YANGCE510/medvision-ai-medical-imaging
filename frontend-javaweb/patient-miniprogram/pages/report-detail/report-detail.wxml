@@ -1,0 +1,56 @@
+<view class="page-shell detail-page">
+  <view wx:if="{{loading}}" class="card loading-card">正在加载报告...</view>
+
+  <block wx:else>
+    <view class="card overview-card">
+      <view class="overview-head">
+        <view>
+          <text class="overview-title">影像分析报告</text>
+        </view>
+      </view>
+      <text class="overview-text">{{report.overview}}</text>
+    </view>
+
+    <view wx:if="{{report.doctorReviewNote}}" class="card section-card doctor-note-card">
+      <text class="section-title">医生备注</text>
+      <text class="doctor-note-text">{{report.doctorReviewNote}}</text>
+    </view>
+
+    <view class="card section-card">
+      <text class="section-title">关键测量</text>
+      <view class="measure-grid">
+        <view wx:for="{{report.measurements}}" wx:key="label" class="measure-item">
+          <text class="measure-label">{{item.label}}</text>
+          <text class="measure-value">{{item.value}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-card">
+      <text class="section-title">医生复核重点</text>
+      <view class="list">
+        <view wx:for="{{report.reviewPoints}}" wx:key="*this" class="list-item">
+          <text class="dot"></text>
+          <text>{{item}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-card">
+      <text class="section-title">下一步建议</text>
+      <view class="list">
+        <view wx:for="{{report.suggestions}}" wx:key="*this" class="list-item">
+          <text class="dot blue"></text>
+          <text>{{item}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="safe-note">{{report.disclaimer}}</view>
+
+    <view class="bottom-space"></view>
+    <view class="chat-entry">
+      <button class="primary-btn" bindtap="openChat">问 AI 解释报告</button>
+    </view>
+  </block>
+</view>

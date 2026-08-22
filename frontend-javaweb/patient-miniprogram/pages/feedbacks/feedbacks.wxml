@@ -1,0 +1,50 @@
+<view class="page-shell feedbacks-page">
+  <view class="hero">
+    <view>
+      <text class="page-title">患者反馈</text>
+    </view>
+  </view>
+
+  <view class="card feedback-form-card">
+    <text class="section-title">提交新问题</text>
+    <text class="feedback-limit {{feedbackLimitReached ? 'blocked' : ''}}">
+      当前未回复反馈：{{pendingFeedbackCount}} / 3
+    </text>
+    <view class="field">
+      <text>关联报告</text>
+      <picker mode="selector" range="{{reportOptions}}" value="{{selectedReportIndex}}" bindchange="onReportChange">
+        <view class="picker-box">{{selectedReportLabel || '请选择需要医生查看的报告'}}</view>
+      </picker>
+    </view>
+    <view class="field">
+      <text>问题描述</text>
+      <textarea value="{{question}}" placeholder="写下 AI 无法解决、需要医生人工处理的问题" bindinput="onInput" />
+    </view>
+    <button class="primary-btn" loading="{{submitting}}" disabled="{{submitting || !reports.length || feedbackLimitReached}}" bindtap="submit">
+      {{feedbackLimitReached ? '等待医生回复后再提交' : '提交给医生'}}
+    </button>
+  </view>
+
+  <view wx:if="{{loading}}" class="card loading-card">正在加载反馈...</view>
+
+  <view wx:elif="{{feedbacks.length}}" class="feedback-list">
+    <view wx:for="{{feedbacks}}" wx:key="id" class="card feedback-card">
+      <view class="feedback-head">
+        <view>
+          <text class="feedback-title">{{item.originalFilename}}</text>
+          <text class="feedback-date">{{item.createdAt}}</text>
+        </view>
+        <text class="status-pill">{{item.statusLabel}}</text>
+      </view>
+      <text class="question-text">{{item.question}}</text>
+      <view class="reply-box">
+        <text class="reply-label">医生回复</text>
+        <text class="reply-text">{{item.doctorReply || '医生尚未回复，请稍后查看。'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="card empty-card">
+    <text class="empty-title">暂无反馈记录</text>
+  </view>
+</view>

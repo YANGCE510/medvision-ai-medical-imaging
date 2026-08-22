@@ -1,0 +1,156 @@
+.feedbacks-page {
+  padding-bottom: calc(132rpx + env(safe-area-inset-bottom));
+}
+
+.feedback-form-card,
+.feedback-card {
+  padding: 28rpx;
+}
+
+.feedback-form-card {
+  margin-bottom: 24rpx;
+}
+
+.feedback-limit {
+  display: block;
+  margin-top: 18rpx;
+  color: var(--color-primary);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.feedback-limit.blocked {
+  color: var(--color-warning);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.field > text {
+  color: #526174;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.picker-box,
+.field textarea {
+  width: 100%;
+  padding: 22rpx;
+  border: 1rpx solid #dbe4ef;
+  border-radius: 18rpx;
+  color: #172331;
+  background: #f8fafc;
+  font-size: 28rpx;
+  line-height: 1.55;
+}
+
+.picker-box {
+  min-height: 86rpx;
+}
+
+.field textarea {
+  min-height: 220rpx;
+}
+
+.primary-btn {
+  margin-top: 28rpx;
+}
+
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.feedback-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.feedback-title,
+.feedback-date,
+.question-text,
+.reply-label,
+.reply-text {
+  display: block;
+}
+
+.feedback-title {
+  color: #172331;
+  font-size: 30rpx;
+  font-weight: 850;
+}
+
+.feedback-date {
+  margin-top: 8rpx;
+  color: #758397;
+  font-size: 24rpx;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.question-text {
+  margin-top: 22rpx;
+  color: #334155;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.reply-box {
+  margin-top: 22rpx;
+  padding: 20rpx;
+  border-radius: 20rpx;
+  background: #f2f6fb;
+}
+
+.reply-label {
+  color: #526174;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.reply-text {
+  margin-top: 10rpx;
+  color: #334155;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+
+.loading-card,
+.empty-card {
+  padding: 40rpx 28rpx;
+  color: #66758a;
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.empty-title,
+.empty-copy {
+  display: block;
+}
+
+.empty-title {
+  color: #172331;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.empty-copy {
+  margin-top: 12rpx;
+  color: #66758a;
+  font-size: 26rpx;
+}

@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPGL Analyze 医学影像分析平台</title>
+    <link rel="stylesheet" href="./assets/styles.css?v=20260617-dashboard-single-row">
+    <link rel="stylesheet" href="./assets/ui-system.css?v=20260617-published-review-state">
+</head>
+<body>
+<div id="app" v-cloak>
+    <section v-if="!isAuthed" class="login-shell">
+        <div class="login-brand">
+            <div class="brand-mark">P</div>
+            <div>
+                <p class="eyebrow">医学影像分析平台</p>
+                <h1>PPGL Analyze</h1>
+                <p class="brand-copy">医学影像智能分析工作台</p>
+            </div>
+        </div>
+
+        <form class="login-panel" @submit.prevent="submitAuth">
+            <div class="panel-title">
+                <h2>{{ authMode === 'login' ? '系统登录' : '账号注册' }}</h2>
+            </div>
+
+            <div class="auth-tabs">
+                <button type="button" :class="{ active: authMode === 'login' }" @click="switchAuthMode('login')">登录</button>
+                <button type="button" :class="{ active: authMode === 'register' }" @click="switchAuthMode('register')">注册</button>
+            </div>
+
+            <label>
+                <span>{{ authMode === 'login' ? '账号或手机号' : '账号' }}</span>
+                <input v-model.trim="authForm.username" type="text" autocomplete="username" :placeholder="authMode === 'login' ? '请输入账号或手机号' : '3-32 位字母、数字或下划线'">
+            </label>
+
+            <label v-if="authMode === 'register'">
+                <span>姓名</span>
+                <input v-model.trim="authForm.displayName" type="text" autocomplete="name" placeholder="例如：张医生">
+            </label>
+
+            <label v-if="authMode === 'register'">
+                <span>邮箱</span>
+                <input v-model.trim="authForm.email" type="text" autocomplete="email" placeholder="doctor@example.com">
+            </label>
+
+            <label v-if="authMode === 'register'">
+                <span>手机号</span>
+                <input v-model.trim="authForm.phone" type="text" autocomplete="tel" placeholder="请输入 11 位手机号">
+            </label>
+
+            <label v-if="authMode === 'register' && authForm.role === 'PATIENT'">
+                <span>身份证号</span>
+                <input v-model.trim="authForm.patientIdCard" type="text" placeholder="请输入病人身份证号">
+            </label>
+
+            <label v-if="authMode === 'register'">
+                <span>用户类型</span>
+                <select v-model="authForm.role">
+                    <option value="DOCTOR">医生</option>
+                    <option value="PATIENT">病人</option>
+                    <option value="ADMIN">管理员</option>
+                </select>
+            </label>
+
+            <label>
+                <span>密码</span>
+                <input v-model.trim="authForm.password" type="password" autocomplete="current-password" placeholder="至少 6 位">
+            </label>
+
+            <div class="login-row">
+                <label class="remember">
+                    <input v-model="authForm.remember" type="checkbox">
+                    <span>记住登录状态</span>
+                </label>
+                <a href="javascript:void(0)">忘记密码</a>
+            </div>
+
+            <button class="primary-btn" type="submit" :disabled="isBusy">
+                {{ isBusy ? '处理中...' : (authMode === 'login' ? '登录平台' : '创建账号') }}
+            </button>
+            <p :class="['login-hint', authMessage.type]">{{ authMessage.text }}</p>
+        </form>
+    </section>
+
+    <section v-else class="admin-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-mark small">P</div>
+                <div>
+                    <strong>PPGL Analyze</strong>
+                </div>
+            </div>
+
+            <nav>
+                <button v-for="item in menuItems"
+                        :key="item.key"
+                        :class="{ active: activeMenu === item.key }"
+                        @click="activeMenu = item.key">
+                    <span class="nav-icon">{{ item.icon }}</span>
+                    <span>{{ item.label }}</span>
+                </button>
+            </nav>
+        </aside>
+
+        <main class="workspace">
+            <header class="topbar">
+                <div>
+                    <h2>{{ currentMenu.title }}</h2>
+                </div>
+                <div class="top-actions">
+                    <span class="user-chip">{{ currentUser.displayName || currentUser.username }} · {{ currentUser.roleLabel }}</span>
+                    <button class="logout-btn" @click="openLogoutConfirm">登出</button>
+                </div>
+            </header>
+
+            <section v-if="activeMenu === 'dashboard'" class="stats-grid">
+                <article v-for="stat in dashboardStats" :key="stat.label" class="stat-card">
+                    <span>{{ stat.label }}</span>
+                    <strong>{{ stat.value }}</strong>
+                    <em>{{ stat.change }}</em>
+                </article>
+            </section>
+
+            <section v-if="activeMenu === 'dashboard'" class="content-grid">
+                <article class="panel wide">
+                    <div class="panel-head">
+                        <h3>临床分析概览</h3>
+                        <button class="line-btn" type="button" @click="activeMenu = 'reports'">查看报告</button>
+                    </div>
+                    <div v-if="reports.length" class="clinical-dashboard">
+                        <section class="clinical-chart-card risk">
+                            <div>
+                                <span>风险等级分布</span>
+                                <strong>{{ dashboardRiskChart.total }} 例</strong>
+                            </div>
+                            <div class="risk-donut" :style="{ background: dashboardRiskChart.background }">
+                                <div>
+                                    <strong>{{ dashboardRiskChart.highPercent }}%</strong>
+                                    <span>高风险</span>
+                                </div>
+                            </div>
+                            <ul class="risk-legend">
+                                <li v-for="item in dashboardRiskChart.items" :key="item.label">
+                                    <i :class="item.tone"></i>
+                                    <span>{{ item.label }}</span>
+                                    <strong>{{ item.count }}</strong>
+                                </li>
+                            </ul>
+                        </section>
+                        <section class="clinical-chart-card volume">
+                            <div>
+                                <span>肿瘤体积分布</span>
+                                <strong>{{ dashboardClinicalKpis[1].value }}</strong>
+                            </div>
+                            <div class="volume-bars">
+                                <div v-for="item in dashboardVolumeBuckets" :key="item.label" class="volume-bar">
+                                    <span>{{ item.label }}</span>
+                                    <div>
+                                        <i :style="{ height: item.percent + '%' }"></i>
+                                    </div>
+                                    <strong>{{ item.count }}</strong>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="clinical-kpi-strip">
+                            <div v-for="item in dashboardClinicalKpis" :key="item.label">
+                                <span>{{ item.label }}</span>
+                                <strong>{{ item.value }}</strong>
+                                <em>{{ item.note }}</em>
+                            </div>
+                        </section>
+                    </div>
+                    <div v-else class="empty-state">暂无已分析报告，完成分析后会自动生成临床统计图表。</div>
+                </article>
+
+                <article class="panel">
+                    <div class="panel-head">
+                        <h3>计算节点状态</h3>
+                        <button class="line-btn" type="button" :disabled="computeNodeStatus.loading" @click="loadComputeNodeStatus">
+                            {{ computeNodeStatus.loading ? '检测中' : '刷新' }}
+                        </button>
+                    </div>
+                    <div :class="['node-status-card', computeNodeStatusClass]">
+                        <div class="node-status-main">
+                            <span class="node-status-dot"></span>
+                            <div>
+                                <strong>{{ computeNodeTitle }}</strong>
+                                <p>{{ computeNodeStatus.message }}</p>
+                            </div>
+                        </div>
+                        <dl class="node-status-list">
+                            <div v-for="item in computeNodeRows" :key="item.label">
+                                <dt>{{ item.label }}</dt>
+                                <dd :class="item.tone">{{ item.value }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </article>
+            </section>
+
+            <section v-if="activeMenu === 'images'" class="image-manager">
+                <article v-if="currentUser.role !== 'DOCTOR'" class="panel empty-panel">
+                    <h3>影像管理</h3>
+                    <p>当前账号类型为 {{ currentUser.roleLabel }}，只有医生用户可以上传和管理病人的 CT 影像。</p>
+                </article>
+
+                <template v-else>
+                    <article class="panel ct-list-panel">
+                        <div class="panel-head">
+                            <form class="ct-search" @submit.prevent="searchCtImages">
+                                <input v-model.trim="ctSearchText" type="search" placeholder="输入病人姓名或身份证号查询">
+                                <button type="submit">搜索</button>
+                            </form>
+                            <div class="panel-actions">
+                                <button class="primary-btn compact" type="button" @click="openCtUploadModal">上传 CT</button>
+                            </div>
+                        </div>
+                        <div v-if="ctListBusy && !ctImages.length" class="empty-state">正在加载影像数据...</div>
+                        <table v-else-if="pagedCtImages.length">
+                            <thead>
+                            <tr>
+                                <th>病人姓名</th>
+                                <th>身份证号</th>
+                                <th>文件名</th>
+                                <th>大小</th>
+                                <th>状态</th>
+                                <th>上传时间</th>
+                                <th>备注</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="image in pagedCtImages" :key="image.id">
+                                <td>{{ image.patientName }}</td>
+                                <td>{{ image.patientIdCard }}</td>
+                                <td>{{ image.originalFilename }}</td>
+                                <td>{{ image.readableFileSize }}</td>
+                                <td><span :class="['tag', ctStatusClass(image.status)]">{{ image.status }}</span></td>
+                                <td>{{ image.createdAt }}</td>
+                                <td>{{ image.remark || '-' }}</td>
+                                <td><button class="table-danger-btn" @click="deleteCtImage(image)">删除</button></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        <div v-else class="empty-state">{{ ctAppliedSearch ? '没有查询到匹配的 CT 影像。' : '还没有上传 CT 影像。' }}</div>
+                        <div v-if="filteredCtImages.length" class="pagination-bar">
+                            <span>共 {{ filteredCtImages.length }} 条，第 {{ ctPage }} / {{ ctTotalPages }} 页</span>
+                            <div>
+                                <button type="button" :disabled="ctPage <= 1" @click="changeCtPage(-1)">上一页</button>
+                                <button
+                                    v-for="page in ctPageNumbers"
+                                    :key="page"
+                                    type="button"
+                                    :class="{ active: page === ctPage }"
+                                    @click="goCtPage(page)">
+                                    {{ page }}
+                                </button>
+                                <button type="button" :disabled="ctPage >= ctTotalPages" @click="changeCtPage(1)">下一页</button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+            </section>
+
+            <section v-if="activeMenu === 'analysis'" class="analysis-manager">
+                <article class="panel analysis-queue">
+                    <div class="panel-head">
+                        <h3>分析队列</h3>
+                    </div>
+                    <div v-if="analysisTasks.length" class="queue-list">
+                        <section v-for="task in analysisTasks" :key="task.id" class="queue-item">
+                            <div class="queue-main">
+                                <div>
+                                    <strong>{{ task.patientName }}</strong>
+                                    <span>{{ task.originalFilename }} · {{ task.doctorName }}</span>
+                                </div>
+                                <span :class="['tag', task.statusClass]">{{ task.status }}</span>
+                            </div>
+                            <div class="queue-meta">
+                                <span v-if="task.queuePosition">队列第 {{ task.queuePosition }} 位</span>
+                                <span v-else>{{ task.message || '等待状态更新' }}</span>
+                                <span>{{ task.progress }}%</span>
+                            </div>
+                            <div class="queue-progress">
+                                <span :style="{ width: task.progress + '%' }"></span>
+                            </div>
+                            <p v-if="task.failedReasonPreview"
+                               class="queue-error"
+                               :title="task.failedReason">
+                                {{ task.failedReasonPreview }}
+                            </p>
+                        </section>
+                    </div>
+                    <div v-else class="empty-state">还没有分析任务。</div>
+                </article>
+
+                <article class="panel analysis-candidates">
+                    <div class="panel-subhead">
+                        <h3>待分析案例</h3>
+                    </div>
+                    <div class="analysis-toolbar">
+                        <form class="ct-search" @submit.prevent="searchAnalysisCandidates">
+                            <input v-model.trim="analysisSearchText" type="search" placeholder="输入病人姓名或身份证号查询">
+                            <button type="submit">搜索</button>
+                        </form>
+                        <button class="primary-btn compact" type="button" :disabled="analysisBusy || !selectedAnalysisCount" @click="submitAnalysisTasks">
+                            加入队列 {{ selectedAnalysisCount ? '(' + selectedAnalysisCount + ')' : '' }}
+                        </button>
+                    </div>
+                    <p v-if="analysisMessage.text" :class="['form-message', analysisMessage.type]">{{ analysisMessage.text }}</p>
+                    <div v-if="filteredAnalysisCandidates.length" class="analysis-table-scroll">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" :checked="allAnalysisSelected" @change="toggleAllAnalysisCandidates">
+                                </th>
+                                <th>病人姓名</th>
+                                <th>身份证号</th>
+                                <th>来源医生</th>
+                                <th>文件名</th>
+                                <th>状态</th>
+                                <th>上传时间</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="item in pagedAnalysisCandidates" :key="item.ctImageId" @click="toggleAnalysisCandidate(item.ctImageId)">
+                                <td>
+                                    <input type="checkbox" :checked="selectedAnalysisIds.includes(item.ctImageId)" @click.stop @change="toggleAnalysisCandidate(item.ctImageId)">
+                                </td>
+                                <td>{{ item.patientName }}</td>
+                                <td>{{ item.patientIdCard }}</td>
+                                <td>{{ item.doctorName }}</td>
+                                <td>{{ item.originalFilename }}</td>
+                                <td><span class="tag pending">{{ item.status }}</span></td>
+                                <td>{{ item.createdAt }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="empty-state">{{ analysisAppliedSearch ? '没有查询到匹配的待分析案例。' : '当前没有可提交分析的 CT。' }}</div>
+                    <div v-if="filteredAnalysisCandidates.length" class="pagination-bar">
+                        <span>共 {{ filteredAnalysisCandidates.length }} 条，第 {{ analysisPage }} / {{ analysisTotalPages }} 页</span>
+                        <div>
+                            <button type="button" :disabled="analysisPage <= 1" @click="changeAnalysisPage(-1)">上一页</button>
+                            <button
+                                v-for="page in analysisPageNumbers"
+                                :key="page"
+                                type="button"
+                                :class="{ active: page === analysisPage }"
+                                @click="goAnalysisPage(page)">
+                                {{ page }}
+                            </button>
+                            <button type="button" :disabled="analysisPage >= analysisTotalPages" @click="changeAnalysisPage(1)">下一页</button>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section v-if="activeMenu === 'reports'" class="report-manager">
+                <article v-if="!selectedReport" class="panel report-list-panel">
+                    <div class="panel-head">
+                        <h3>已分析 CT</h3>
+                    </div>
+                    <div v-if="reportBusy && !reports.length" class="empty-state">正在加载报告...</div>
+                    <table v-else-if="reports.length">
+                        <thead>
+                        <tr>
+                            <th>病人姓名</th>
+                            <th>身份证号</th>
+                            <th>风险等级</th>
+                            <th>肿瘤体积 ml</th>
+                            <th>状态</th>
+                            <th>生成时间</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="report in reports" :key="report.taskId" :class="{ selected: selectedReport && selectedReport.taskId === report.taskId }">
+                            <td>{{ report.patientName }}</td>
+                            <td>{{ report.patientIdCard }}</td>
+                            <td><span class="tag info">{{ report.riskLevel }}</span></td>
+                            <td>{{ report.tumorVolumeMl }}</td>
+                            <td><span :class="['tag', reportReviewStatusClass(report)]">{{ report.doctorReviewStatusLabel }}</span></td>
+                            <td>{{ report.createdAt }}</td>
+                            <td>
+                                <div class="report-row-actions">
+                                    <button class="line-btn" type="button" @click="openReport(report, 'ct')">查看 CT</button>
+                                    <button class="line-btn" type="button" @click="openReport(report, 'report')">查看报告</button>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div v-else class="empty-state">还没有已归档的分析报告。</div>
+                </article>
+
+                <article v-if="selectedReport" class="panel report-detail-panel">
+                    <div class="panel-head">
+                        <div>
+                            <h3>{{ reportDetailMode === 'ct' ? 'CT 详情' : '报告详情' }}</h3>
+                            <span>{{ selectedReport.patientName }} · {{ selectedReport.originalFilename }}</span>
+                        </div>
+                        <div class="report-head-actions">
+                            <a v-if="reportDetailMode === 'ct' && selectedReport.segmentationAvailable"
+                               class="line-btn"
+                               :href="selectedReport.segmentationUrl"
+                               download>下载 NIfTI 分割结果</a>
+                            <button v-if="reportDetailMode === 'ct' && selectedReport.segmentationAvailable"
+                                    class="line-btn"
+                                    type="button"
+                                    @click="toggleReportViewer">
+                                {{ reportViewerActive ? '关闭三维图像' : '显示三维图像' }}
+                            </button>
+                            <button v-if="reportDetailMode === 'report'"
+                                    :class="['line-btn', reportContentTab === 'report' ? 'active' : '']"
+                                    type="button"
+                                    @click="setReportContentTab('report')">查看分析报告</button>
+                            <button v-if="reportDetailMode === 'report'"
+                                    :class="['line-btn', reportContentTab === 'metrics' ? 'active' : '']"
+                                    type="button"
+                                    @click="setReportContentTab('metrics')">临床指标</button>
+                            <button v-if="reportDetailMode === 'report'"
+                                    class="line-btn"
+                                    type="button"
+                                    :disabled="selectedReport.patientVisible"
+                                    @click="openReportReviewModal">
+                                {{ selectedReport.patientVisible ? '已发布' : '审核' }}
+                            </button>
+                            <button class="ghost-btn compact" type="button" @click="closeReport">关闭</button>
+                        </div>
+                    </div>
+                    <p v-if="reportMessage.text && !selectedReport.patientVisible" :class="['form-message', reportMessage.type]">{{ reportMessage.text }}</p>
+                    <div class="report-detail">
+                        <div v-if="reportDetailMode === 'ct' && !selectedReport.segmentationAvailable" class="report-actions">
+                            <span v-if="!selectedReport.segmentationAvailable" class="muted-text">暂无 NIfTI 分割结果</span>
+                        </div>
+                        <section class="report-chat-workspace">
+                            <aside class="report-chat-sidepage">
+                                <section v-if="reportDetailMode === 'ct' && reportViewerActive" class="report-3d-panel is-embedded">
+                                    <div class="report-3d-head">
+                                        <strong>ITK-SNAP 风格影像查看</strong>
+                                        <span>{{ reportViewerMessage }}</span>
+                                    </div>
+                                    <div class="report-3d-toolbar itk-toolbar">
+                                        <label>
+                                            <span>Mask 透明度 {{ Math.round(reportViewerOpacity * 100) }}%</span>
+                                            <input type="range" min="0" max="1" step="0.05" v-model.number="reportViewerOpacity" @input="applyReportViewerOpacity">
+                                        </label>
+                                        <label>
+                                            <span>Surface 透明度 {{ Math.round(reportSurfaceOpacity * 100) }}%</span>
+                                            <input type="range" min="0.1" max="1" step="0.05" v-model.number="reportSurfaceOpacity" @input="applyReportSurfaceOpacity">
+                                        </label>
+                                        <button type="button" @click="resetReportViewer">重置视图</button>
+                                        <a v-if="selectedReport.segmentationAvailable"
+                                           class="line-btn dark"
+                                           :href="selectedReport.segmentationUrl"
+                                           download>下载 NIfTI 分割结果</a>
+                                    </div>
+                                    <div :class="['report-itk-grid', reportViewerFocus ? 'is-focused' : '', reportViewerFocus ? 'focus-' + reportViewerFocus : '']">
+                                        <div :class="['itk-pane', reportViewerFocus === 'axial' ? 'is-active' : '', reportViewerFocus && reportViewerFocus !== 'axial' ? 'is-hidden' : '']">
+                                            <button class="itk-pane-title" type="button" @click="toggleReportViewerFocus('axial')">Axial</button>
+                                            <canvas id="report-axial-canvas"></canvas>
+                                        </div>
+                                        <div :class="['itk-pane', reportViewerFocus === 'sagittal' ? 'is-active' : '', reportViewerFocus && reportViewerFocus !== 'sagittal' ? 'is-hidden' : '']">
+                                            <button class="itk-pane-title" type="button" @click="toggleReportViewerFocus('sagittal')">Sagittal</button>
+                                            <canvas id="report-sagittal-canvas"></canvas>
+                                        </div>
+                                        <div :class="['itk-pane surface-pane', reportViewerFocus === 'surface' ? 'is-active' : '', reportViewerFocus && reportViewerFocus !== 'surface' ? 'is-hidden' : '']">
+                                            <button class="itk-pane-title" type="button" @click="toggleReportViewerFocus('surface')">3D Surface</button>
+                                            <div id="report-surface-viewer" class="report-surface-viewer"></div>
+                                            <div id="report-surface-controls" class="report-surface-controls"></div>
+                                        </div>
+                                        <div :class="['itk-pane', reportViewerFocus === 'coronal' ? 'is-active' : '', reportViewerFocus && reportViewerFocus !== 'coronal' ? 'is-hidden' : '']">
+                                            <button class="itk-pane-title" type="button" @click="toggleReportViewerFocus('coronal')">Coronal</button>
+                                            <canvas id="report-coronal-canvas"></canvas>
+                                        </div>
+                                    </div>
+                                </section>
+                                <section v-if="reportDetailMode === 'report'" class="report-reading-panel">
+                                    <template v-if="reportContentTab === 'report'">
+                                        <div class="report-reading-head">
+                                            <h4>分析报告</h4>
+                                        </div>
+                                        <div class="report-readable-scroll">
+                                            <section class="readable-section">
+                                                <h5>核心结论</h5>
+                                                <div class="report-kpi-grid">
+                                                    <div v-for="item in reportSummaryCards(selectedReport)"
+                                                         :key="item.label"
+                                                         :class="['report-kpi-card', item.tone ? 'tone-' + item.tone : '']">
+                                                        <span>{{ item.label }}</span>
+                                                        <strong>{{ item.value }}</strong>
+                                                        <em v-if="item.note">{{ item.note }}</em>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>主要依据</h5>
+                                                <ul v-if="reportRiskReasons(selectedReport).length" class="report-readable-list">
+                                                    <li v-for="item in reportRiskReasons(selectedReport)" :key="item">{{ item }}</li>
+                                                </ul>
+                                                <p v-else class="report-empty-note">暂无主要依据。</p>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>邻近结构</h5>
+                                                <div v-if="reportNearestStructures(selectedReport).length" class="report-table-wrap">
+                                                    <table class="report-mini-table">
+                                                        <thead>
+                                                        <tr>
+                                                            <th>结构</th>
+                                                            <th>分组</th>
+                                                            <th>距离</th>
+                                                            <th>关系</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        <tr v-for="item in reportNearestStructures(selectedReport)" :key="item.name + item.distance">
+                                                            <td>{{ item.name }}</td>
+                                                            <td>{{ item.group }}</td>
+                                                            <td>{{ item.distance }}</td>
+                                                            <td><span :class="['metric-pill', item.tone]">{{ item.relation }}</span></td>
+                                                        </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <p v-else class="report-empty-note">暂无邻近结构信息。</p>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>待补充资料</h5>
+                                                <div v-if="reportMissingClinicalData(selectedReport).length" class="report-chip-list">
+                                                    <span v-for="item in reportMissingClinicalData(selectedReport)" :key="item">{{ item }}</span>
+                                                </div>
+                                                <p v-else class="report-empty-note">暂无缺失资料提示。</p>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>报告限制</h5>
+                                                <ul v-if="reportLimitations(selectedReport).length" class="report-readable-list muted">
+                                                    <li v-for="item in reportLimitations(selectedReport)" :key="item">{{ item }}</li>
+                                                </ul>
+                                                <p v-else class="report-empty-note">暂无限制说明。</p>
+                                            </section>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="report-reading-head">
+                                            <h4>临床指标</h4>
+                                        </div>
+                                        <div class="report-readable-scroll">
+                                            <section class="readable-section">
+                                                <h5>肿瘤负荷</h5>
+                                                <div class="report-kpi-grid compact">
+                                                    <div v-for="item in clinicalTumorMetrics(selectedReport)" :key="item.label" class="report-kpi-card">
+                                                        <span>{{ item.label }}</span>
+                                                        <strong>{{ item.value }}</strong>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>来源判断</h5>
+                                                <div class="report-kpi-grid compact">
+                                                    <div v-for="item in clinicalOriginAssessment(selectedReport)" :key="item.label" class="report-kpi-card">
+                                                        <span>{{ item.label }}</span>
+                                                        <strong>{{ item.value }}</strong>
+                                                    </div>
+                                                </div>
+                                                <ul v-if="clinicalOriginBasis(selectedReport).length" class="report-readable-list compact-list">
+                                                    <li v-for="item in clinicalOriginBasis(selectedReport)" :key="item">{{ item }}</li>
+                                                </ul>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>锚点距离</h5>
+                                                <div v-if="clinicalAnchorDistances(selectedReport).length" class="report-table-wrap">
+                                                    <table class="report-mini-table">
+                                                        <thead>
+                                                        <tr>
+                                                            <th>锚点</th>
+                                                            <th>最短距离</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        <tr v-for="item in clinicalAnchorDistances(selectedReport)" :key="item.name">
+                                                            <td>{{ item.name }}</td>
+                                                            <td>{{ item.distance }}</td>
+                                                        </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <p v-else class="report-empty-note">暂无锚点距离。</p>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>关键结构距离</h5>
+                                                <div v-if="clinicalNearestStructures(selectedReport).length" class="report-table-wrap">
+                                                    <table class="report-mini-table">
+                                                        <thead>
+                                                        <tr>
+                                                            <th>结构</th>
+                                                            <th>距离</th>
+                                                            <th>关系</th>
+                                                            <th>重叠体素</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        <tr v-for="item in clinicalNearestStructures(selectedReport)" :key="item.name + item.distance">
+                                                            <td>{{ item.name }}</td>
+                                                            <td>{{ item.distance }}</td>
+                                                            <td><span :class="['metric-pill', item.tone]">{{ item.relation }}</span></td>
+                                                            <td>{{ item.overlap }}</td>
+                                                        </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <p v-else class="report-empty-note">暂无关键结构距离。</p>
+                                            </section>
+                                            <section class="readable-section">
+                                                <h5>分割质量</h5>
+                                                <div class="report-kpi-grid compact">
+                                                    <div v-for="item in clinicalSegmentationQuality(selectedReport)" :key="item.label" class="report-kpi-card">
+                                                        <span>{{ item.label }}</span>
+                                                        <strong>{{ item.value }}</strong>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                        </div>
+                                    </template>
+                                </section>
+                            </aside>
+                            <section class="report-chat-panel medical-chat-panel">
+                                <div class="report-chat-head">
+                                    <div>
+                                        <h4>AI 医学影像分析助手</h4>
+                                        <span>基于当前病例、CT 分割结果和风险评估进行问答</span>
+                                    </div>
+                                    <div class="report-chat-actions">
+                                        <span v-if="reportChatBusy" class="chat-status chat-thinking-status">{{ reportChatThinkingText }}</span>
+                                    </div>
+                                </div>
+                                <div class="report-chat-messages" @click="handleReportChatClick">
+                                    <div v-if="!reportChatMessages.length" class="chat-empty">
+                                        <strong>开始一次报告问答</strong>
+                                        <span>当前报告上下文已载入。</span>
+                                    </div>
+                                    <div v-for="(message, index) in reportChatMessages"
+                                         :key="index"
+                                         :class="['chat-message', message.role]">
+                                        <div class="chat-bubble">
+                                            <p v-if="message.role === 'user'">{{ message.content || '...' }}</p>
+                                            <div v-else-if="message.content"
+                                                 class="chat-markdown"
+                                                 v-html="renderReportChatContent(message.content)"></div>
+                                            <div v-else class="chat-thinking" :aria-label="reportChatThinkingText">
+                                                <span class="chat-thinking-text">{{ reportChatThinkingText }}</span>
+                                            </div>
+                                            <button v-if="message.role === 'assistant' && message.content"
+                                                    class="chat-copy-reply"
+                                                    type="button"
+                                                    aria-label="复制回复"
+                                                    @click="copyReportChatMessage(message.content, $event)">
+                                                复制回复
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <form class="report-chat-form" @submit.prevent="sendReportChat">
+                                    <button class="report-context-toggle"
+                                            type="button"
+                                            :class="{ active: reportChatIncludeContext }"
+                                            :disabled="reportChatBusy"
+                                            @click="reportChatIncludeContext = !reportChatIncludeContext">
+                                        {{ reportChatIncludeContext ? '已关联报告' : '关联报告' }}
+                                    </button>
+                                    <textarea v-model="reportChatQuestion"
+                                              rows="2"
+                                              :disabled="reportChatBusy"
+                                              :placeholder="reportChatIncludeContext ? '询问当前病例的风险依据、影像指标或复核重点' : '输入一般问题；需要病例数据时先打开关联报告'"
+                                              @keydown.enter.exact.prevent="sendReportChat"></textarea>
+                                    <button class="primary-btn compact"
+                                            type="submit"
+                                            :class="{ danger: reportChatBusy }"
+                                            :disabled="!reportChatBusy && !reportChatQuestion.trim()"
+                                            :aria-label="reportChatBusy ? '停止生成' : '发送消息'">
+                                        <span v-if="reportChatBusy" class="send-stop-icon" aria-hidden="true"></span>
+                                        <svg v-else class="send-arrow-icon"
+                                             viewBox="0 0 24 24"
+                                             fill="none"
+                                             aria-hidden="true">
+                                            <path d="M12 19V5"></path>
+                                            <path d="M6.5 10.5L12 5L17.5 10.5"></path>
+                                        </svg>
+                                    </button>
+                                </form>
+                                <p class="medical-chat-disclaimer">AI 回答用于辅助理解当前影像分析报告，不能替代医生诊断或治疗建议。</p>
+                                <p v-if="reportChatError" class="form-message error">{{ reportChatError }}</p>
+                            </section>
+                        </section>
+                    </div>
+                </article>
+            </section>
+
+            <section v-if="activeMenu === 'followups'" class="care-manager">
+                <article class="panel care-form-panel">
+                    <div class="panel-head">
+                        <div>
+                            <h3>新建术后回访计划</h3>
+                        </div>
+                        <button class="line-btn" type="button" :disabled="followUpBusy" @click="loadFollowUpPage">刷新</button>
+                    </div>
+                    <form class="care-form" @submit.prevent="createFollowUpPlan">
+                        <label>
+                            <span>关联报告</span>
+                            <button class="report-picker-trigger"
+                                    type="button"
+                                    @click="openFollowUpReportPicker">
+                                <template v-if="selectedFollowUpReport">
+                                    <strong>{{ selectedFollowUpReport.patientName }}</strong>
+                                    <span>{{ selectedFollowUpReport.originalFilename }} · {{ selectedFollowUpReport.createdAt }}</span>
+                                </template>
+                                <template v-else>
+                                    <strong>选择关联报告</strong>
+                                </template>
+                            </button>
+                        </label>
+                        <label>
+                            <span>建议复查时间</span>
+                            <input v-model="followUpForm.followUpDate" type="date">
+                        </label>
+                        <label>
+                            <span>回访原因</span>
+                            <textarea v-model.trim="followUpForm.reason" rows="3" maxlength="500" placeholder="术后观察血压波动和症状恢复情况"></textarea>
+                        </label>
+                        <label>
+                            <span>需要准备的资料</span>
+                            <textarea v-model.trim="followUpForm.preparation" rows="3" maxlength="500" placeholder="一周血压记录、复查 CT、实验室检查结果"></textarea>
+                        </label>
+                        <footer class="care-form-actions">
+                            <span v-if="followUpMessage.text" :class="['form-message', followUpMessage.type]">{{ followUpMessage.text }}</span>
+                            <button class="primary-btn compact" type="submit" :disabled="followUpBusy">
+                                {{ followUpBusy ? '保存中...' : '添加回访计划' }}
+                            </button>
+                        </footer>
+                    </form>
+                </article>
+
+                <article class="panel">
+                    <div class="panel-head">
+                        <h3>回访列表</h3>
+                    </div>
+                    <div v-if="followUpBusy && !followUps.length" class="empty-state">正在加载回访计划...</div>
+                    <table v-else-if="followUps.length" class="care-table">
+                        <thead>
+                        <tr>
+                            <th>患者</th>
+                            <th>复查时间</th>
+                            <th>回访原因</th>
+                            <th>状态</th>
+                            <th>患者提交</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="plan in followUps" :key="plan.id">
+                            <td>
+                                <strong>{{ plan.patientName }}</strong>
+                                <span>{{ plan.patientIdCard }}</span>
+                            </td>
+                            <td>{{ plan.followUpDate }}</td>
+                            <td>
+                                <strong>{{ plan.reason }}</strong>
+                                <span v-if="plan.preparation">准备：{{ plan.preparation }}</span>
+                            </td>
+                            <td>
+                                <span :class="['followup-status-pill', plan.status === 'COMPLETED' ? 'success' : (plan.overdue ? 'warn' : 'pending')]">
+                                    {{ plan.statusLabel }}
+                                </span>
+                            </td>
+                            <td>
+                                <template v-if="plan.latestSubmission">
+                                    <strong>{{ plan.latestSubmission.createdAt }}</strong>
+                                    <span>症状：{{ plan.latestSubmission.symptoms || '未填写' }}</span>
+                                    <span>血压/心率：{{ plan.latestSubmission.bloodPressure || '-' }} / {{ plan.latestSubmission.heartRate || '-' }}</span>
+                                </template>
+                                <span v-else>尚未提交</span>
+                            </td>
+                            <td>
+                                <div class="report-row-actions">
+                                    <button class="line-btn" type="button" :disabled="followUpBusy" @click="openFollowUpDetail(plan)">查看</button>
+                                    <button class="line-btn" type="button" :disabled="followUpBusy || plan.status === 'COMPLETED'" @click="updateFollowUpStatus(plan, 'COMPLETED')">完成</button>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div v-else class="empty-state">暂无回访计划。可先基于已发布报告创建一条计划。</div>
+                </article>
+            </section>
+
+            <section v-if="activeMenu === 'feedbacks'" class="care-manager">
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <h3>患者反馈</h3>
+                        </div>
+                        <button class="line-btn" type="button" :disabled="feedbackBusy || concernBusyTaskId" @click="loadFeedbackPage">刷新</button>
+                    </div>
+                    <div class="care-subtabs">
+                        <button type="button"
+                                :class="{ active: feedbackSubTab === 'feedbacks' }"
+                                @click="setFeedbackSubTab('feedbacks')">
+                            查看/回复患者反馈
+                        </button>
+                        <button type="button"
+                                :class="{ active: feedbackSubTab === 'concerns' }"
+                                @click="setFeedbackSubTab('concerns')">
+                            查看患者担忧
+                        </button>
+                    </div>
+
+                    <template v-if="feedbackSubTab === 'feedbacks'">
+                        <p v-if="feedbackMessage.text" :class="['form-message', feedbackMessage.type]">{{ feedbackMessage.text }}</p>
+                        <div v-if="feedbackBusy && !feedbacks.length" class="empty-state">正在加载反馈...</div>
+                        <div v-else-if="feedbacks.length" class="feedback-list">
+                            <article v-for="feedback in feedbacks" :key="feedback.id" class="feedback-item">
+                                <header>
+                                    <div>
+                                        <strong>{{ feedback.patientName }}</strong>
+                                        <span>{{ feedback.originalFilename }} · {{ feedback.createdAt }}</span>
+                                    </div>
+                                </header>
+                                <p>{{ feedback.question }}</p>
+                                <div class="feedback-reply">
+                                    <textarea v-model="feedbackReplyDrafts[feedback.id]" rows="3" maxlength="1000" placeholder="填写给患者的回复或处理备注"></textarea>
+                                    <div>
+                                        <button class="primary-btn compact" type="button" :disabled="feedbackBusy" @click="replyFeedback(feedback)">回复</button>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                        <div v-else class="empty-state">暂无患者反馈。</div>
+                    </template>
+
+                    <template v-else>
+                        <p v-if="concernMessage.type === 'error' && concernMessage.text" :class="['form-message', concernMessage.type]">{{ concernMessage.text }}</p>
+                        <div v-if="reportBusy && !publishedReports.length" class="empty-state">正在加载已发布报告...</div>
+                        <div v-else-if="publishedReports.length" class="concern-list">
+                            <article v-for="report in publishedReports" :key="report.taskId" class="concern-item">
+                                <header>
+                                    <div>
+                                        <strong>{{ report.patientName }}</strong>
+                                        <span>{{ report.patientIdCard }} · {{ report.originalFilename }}</span>
+                                    </div>
+                                </header>
+                                <div class="concern-metrics">
+                                    <span>风险：{{ report.riskLevel }}</span>
+                                    <span>肿瘤体积：{{ report.tumorVolumeMl }} ml</span>
+                                    <span>发布时间：{{ report.doctorReviewedAt || report.createdAt }}</span>
+                                </div>
+                                <button class="primary-btn compact"
+                                        type="button"
+                                        :disabled="concernBusyTaskId"
+                                        @click="analyzePatientConcern(report)">
+                                    {{ concernBusyTaskId === report.taskId ? '分析中...' : '分析担忧' }}
+                                </button>
+                                <section v-if="concernSummaries[report.taskId]" class="concern-summary">
+                                    <h4>患者担忧摘要</h4>
+                                    <p>{{ concernSummaries[report.taskId].summary }}</p>
+                                    <em>生成时间：{{ concernSummaries[report.taskId].generatedAt }}</em>
+                                </section>
+                            </article>
+                        </div>
+                        <div v-else class="empty-state">暂无已发布给患者端的报告。</div>
+                    </template>
+                </article>
+            </section>
+        </main>
+    </section>
+
+    <div v-if="selectedFollowUpDetail" class="modal-mask" @click.self="closeFollowUpDetail">
+        <section class="confirm-dialog followup-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="followup-detail-title">
+            <header>
+                <h3 id="followup-detail-title">回访记录详情</h3>
+                <button type="button" aria-label="关闭" @click="closeFollowUpDetail">×</button>
+            </header>
+            <div class="followup-detail-body">
+                <div class="followup-detail-grid">
+                    <section>
+                        <span>患者</span>
+                        <strong>{{ selectedFollowUpDetail.patientName }}</strong>
+                        <em>{{ selectedFollowUpDetail.patientIdCard }}</em>
+                    </section>
+                    <section>
+                        <span>关联报告</span>
+                        <strong>{{ selectedFollowUpDetail.originalFilename }}</strong>
+                        <em>{{ selectedFollowUpDetail.followUpDate }}</em>
+                    </section>
+                    <section>
+                        <span>状态</span>
+                        <strong>{{ selectedFollowUpDetail.statusLabel }}</strong>
+                    </section>
+                </div>
+                <div class="followup-detail-block">
+                    <h4>回访要求</h4>
+                    <p>{{ selectedFollowUpDetail.reason || '未填写' }}</p>
+                    <span>准备：{{ selectedFollowUpDetail.preparation || '未填写' }}</span>
+                </div>
+                <div class="followup-detail-block" v-if="selectedFollowUpDetail.latestSubmission">
+                    <h4>患者提交</h4>
+                    <dl>
+                        <div>
+                            <dt>提交时间</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.createdAt }}</dd>
+                        </div>
+                        <div>
+                            <dt>症状</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.symptoms || '未填写' }}</dd>
+                        </div>
+                        <div>
+                            <dt>血压</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.bloodPressure || '未填写' }}</dd>
+                        </div>
+                        <div>
+                            <dt>心率</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.heartRate || '未填写' }}</dd>
+                        </div>
+                        <div>
+                            <dt>复查情况</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.treatmentStatus || '未填写' }}</dd>
+                        </div>
+                        <div>
+                            <dt>新检查结果</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.newExamResults || '未填写' }}</dd>
+                        </div>
+                        <div>
+                            <dt>患者备注</dt>
+                            <dd>{{ selectedFollowUpDetail.latestSubmission.patientNote || '未填写' }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="empty-state" v-else>患者尚未提交回访表。</div>
+            </div>
+            <footer>
+                <button type="button" class="line-btn" @click="closeFollowUpDetail">关闭</button>
+            </footer>
+        </section>
+    </div>
+
+    <div v-if="showFollowUpReportPicker" class="modal-mask" @click.self="closeFollowUpReportPicker">
+        <section class="confirm-dialog report-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="report-picker-title">
+            <header class="report-picker-head">
+                <h3 id="report-picker-title">选择关联报告</h3>
+                <button type="button" aria-label="关闭" @click="closeFollowUpReportPicker">×</button>
+            </header>
+            <div class="report-picker-tools">
+                <div class="report-picker-search">
+                    <input v-model.trim="followUpReportSearch" type="search" placeholder="搜索患者姓名、身份证号、文件名或风险等级">
+                </div>
+            </div>
+            <div v-if="filteredPublishedReports.length" class="report-picker-list">
+                <button v-for="report in filteredPublishedReports"
+                        :key="report.taskId"
+                        type="button"
+                        :class="['report-picker-item', { selected: String(report.taskId) === String(followUpForm.taskId) }]"
+                        @click="selectFollowUpReport(report)">
+                    <span class="report-picker-patient">
+                        <strong>{{ report.patientName }}</strong>
+                        <em>{{ report.patientIdCard }}</em>
+                    </span>
+                    <span class="report-picker-file">
+                        <strong>{{ report.originalFilename }}</strong>
+                        <em>{{ report.createdAt }}</em>
+                    </span>
+                    <span class="report-picker-metrics">
+                        <span class="tag info">{{ report.riskLevel }}</span>
+                        <em>{{ report.tumorVolumeMl }} ml</em>
+                    </span>
+                    <span class="report-picker-check">{{ String(report.taskId) === String(followUpForm.taskId) ? '已选择' : '选择' }}</span>
+                </button>
+            </div>
+            <div v-else class="empty-state">没有匹配的已发布报告。</div>
+        </section>
+    </div>
+
+    <div v-if="showReportReviewModal" class="modal-mask" @click.self="closeReportReviewModal">
+        <section class="confirm-dialog report-review-dialog" role="dialog" aria-modal="true" aria-labelledby="report-review-title">
+            <header>
+                <h3 id="report-review-title">审核发布</h3>
+                <button type="button" aria-label="关闭" @click="closeReportReviewModal">×</button>
+            </header>
+            <form class="report-review-form" @submit.prevent="publishReportReview">
+                <label>
+                    <span>医生备注</span>
+                    <textarea v-model="reportReviewNoteDraft"
+                              rows="5"
+                              maxlength="1000"
+                              placeholder="补充给患者看的说明、复诊建议或注意事项"></textarea>
+                </label>
+                <footer>
+                    <button type="button" class="ghost-btn" :disabled="reportReviewBusy" @click="closeReportReviewModal">取消</button>
+                    <button class="primary-btn compact" type="submit" :disabled="reportReviewBusy">
+                        {{ reportReviewBusy ? '发布中...' : '发布' }}
+                    </button>
+                </footer>
+            </form>
+        </section>
+    </div>
+
+    <div v-if="actionConfirm.visible"
+         :class="['modal-mask', 'action-confirm-mask', actionConfirm.type]"
+         @click.self="cancelActionConfirm">
+        <section :class="['action-confirm-dialog', actionConfirm.type]"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="action-confirm-title">
+            <div class="action-confirm-ambient" aria-hidden="true"></div>
+            <header class="action-confirm-head">
+                <span class="action-confirm-icon" aria-hidden="true"></span>
+                <button type="button" aria-label="关闭" @click="cancelActionConfirm">×</button>
+            </header>
+            <div class="action-confirm-body">
+                <h3 id="action-confirm-title">{{ actionConfirm.title }}</h3>
+                <p>{{ actionConfirm.message }}</p>
+                <span v-if="actionConfirm.detail">{{ actionConfirm.detail }}</span>
+            </div>
+            <footer class="action-confirm-actions">
+                <button type="button" class="ghost-btn" @click="cancelActionConfirm">{{ actionConfirm.cancelText }}</button>
+                <button type="button"
+                        :class="['primary-btn', 'compact', { danger: actionConfirm.type === 'danger' }]"
+                        @click="acceptActionConfirm">
+                    {{ actionConfirm.confirmText }}
+                </button>
+            </footer>
+        </section>
+    </div>
+
+    <div v-if="showCtUploadModal" class="modal-mask" @click.self="closeCtUploadModal">
+        <section class="confirm-dialog upload-dialog" role="dialog" aria-modal="true" aria-labelledby="ct-upload-title">
+            <header>
+                <h3 id="ct-upload-title">上传病人 CT</h3>
+                <button type="button" aria-label="关闭" @click="closeCtUploadModal">×</button>
+            </header>
+            <form class="ct-upload-form" @submit.prevent="uploadCtImage">
+                <label>
+                    <span>病人姓名</span>
+                    <input v-model.trim="ctForm.patientName" type="text" placeholder="请输入病人姓名">
+                </label>
+                <label>
+                    <span>身份证号</span>
+                    <input v-model.trim="ctForm.patientIdCard" type="text" maxlength="18" pattern="[1-9][0-9]{16}[0-9Xx]" placeholder="请输入 18 位身份证号">
+                </label>
+                <label class="full">
+                    <span>备注</span>
+                    <textarea v-model.trim="ctForm.remark" rows="3" placeholder="例如：胸部 CT，疑似肺结节复查"></textarea>
+                </label>
+                <label class="full">
+                    <span>CT 文件</span>
+                    <input id="ct-file-input" type="file" @change="handleCtFileChange">
+                </label>
+                <div v-if="ctBusy" class="upload-progress full">
+                    <div>
+                        <span :style="{ width: ctUploadProgress + '%' }"></span>
+                    </div>
+                    <strong>{{ ctUploadProgress }}%</strong>
+                </div>
+                <footer class="form-actions full">
+                    <p :class="['form-message', ctMessage.type]">{{ ctMessage.text }}</p>
+                    <button type="button" class="ghost-btn" @click="closeCtUploadModal">取消</button>
+                    <button class="primary-btn compact" type="submit" :disabled="!isCtUploadReady">
+                        {{ ctBusy ? '上传中...' : '上传 CT' }}
+                    </button>
+                </footer>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script src="./assets/vue.global.prod.js"></script>
+<script src="./assets/app.js?v=20260617-dashboard-no-workflow"></script>
+</body>
+</html>

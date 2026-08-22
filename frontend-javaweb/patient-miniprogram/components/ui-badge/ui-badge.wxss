@@ -1,0 +1,65 @@
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48rpx;
+  padding: 0 18rpx;
+  border-radius: var(--radius-pill);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.ui-badge-success {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.ui-badge-info {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.ui-badge-warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.ui-badge-danger {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.ui-badge-muted {
+  color: var(--color-text-muted);
+  background: var(--color-muted-soft);
+}
+
+.ui-badge-uploading {
+  color: var(--color-status-uploading);
+  background: var(--color-status-uploading-soft);
+}
+
+.ui-badge-segmenting {
+  color: var(--color-status-segmenting);
+  background: var(--color-status-segmenting-soft);
+}
+
+.ui-badge-analyzing {
+  color: var(--color-status-analyzing);
+  background: var(--color-status-analyzing-soft);
+}
+
+.ui-badge-reviewing {
+  color: var(--color-status-reviewing);
+  background: var(--color-status-reviewing-soft);
+}
+
+.ui-badge-published {
+  color: var(--color-status-published);
+  background: var(--color-status-published-soft);
+}
+
+.ui-badge-failed {
+  color: var(--color-status-failed);
+  background: var(--color-status-failed-soft);
+}

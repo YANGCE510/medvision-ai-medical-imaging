@@ -1,0 +1,30 @@
+# PPGL-Analyze 启动与关闭命令
+
+## 进入项目目录
+cd "/Users/anhleecherry/javaweb/yandian/PPGL/PPGL-Analyze"
+
+## 启动服务
+mvn spring-boot:run
+
+启动成功后，浏览器访问：
+http://127.0.0.1:8080/
+
+## 关闭服务
+如果服务运行在当前终端窗口，按：
+Control + C
+
+## 如果忘记服务在哪个终端运行
+查看 8080 端口占用：
+lsof -i :8080
+
+找到 java 进程的 PID 后关闭，例如 PID 是 32297：
+kill 32297
+
+## 常用测试账号
+医生：doctor001 / 123456
+病人：patient001 / 123456
+管理员：admin001 / 123456
+
+zhangsan / 123456
+13600010001 / 123456
+doctor001 / 123456

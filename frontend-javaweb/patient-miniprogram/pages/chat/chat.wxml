@@ -1,0 +1,67 @@
+<view class="chat-page">
+  <view class="chat-panel">
+    <view class="chat-head">
+      <view>
+        <text class="chat-title">报告分析助手</text>
+        <text class="chat-subtitle">基于医生已确认的报告进行问答</text>
+      </view>
+      <text wx:if="{{sending}}" class="chat-status">正在思考...</text>
+    </view>
+
+    <scroll-view class="message-scroll" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}">
+      <ui-loading wx:if="{{reportLoading}}" text="正在加载报告上下文..." />
+
+      <view
+        wx:for="{{messages}}"
+        wx:key="id"
+        id="msg-{{item.id}}"
+        class="message-row {{item.role}}"
+      >
+        <view class="message-bubble">
+          <view wx:if="{{item.thinking}}" class="typing-dots">
+            <text></text>
+            <text></text>
+            <text></text>
+          </view>
+          <text wx:else>{{item.content}}</text>
+        </view>
+      </view>
+
+      <view id="bottom"></view>
+    </scroll-view>
+
+    <view class="input-bar">
+      <scroll-view class="quick-question-scroll" scroll-x enable-flex enhanced show-scrollbar="{{false}}">
+        <view class="quick-question-list">
+          <button
+            wx:for="{{suggestedQuestions}}"
+            wx:key="*this"
+            class="quick-question"
+            disabled="{{sending}}"
+            data-question="{{item}}"
+            bindtap="useSuggestion"
+          >
+            {{item}}
+          </button>
+        </view>
+      </scroll-view>
+      <view class="input-shell">
+        <textarea
+          class="chat-input"
+          value="{{draft}}"
+          fixed
+          auto-height
+          maxlength="300"
+          placeholder="询问当前报告的指标、风险依据或复诊准备"
+          bindinput="onInput"
+          confirm-type="send"
+          bindconfirm="sendMessage"
+        />
+        <button class="send-btn" disabled="{{!canSend || sending}}" bindtap="sendMessage">
+          {{sending ? '…' : '↑'}}
+        </button>
+      </view>
+      <view class="medical-disclaimer">AI 回答用于辅助理解当前影像分析报告，不能替代医生诊断或治疗建议。</view>
+    </view>
+  </view>
+</view>

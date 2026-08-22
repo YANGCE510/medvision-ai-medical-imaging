@@ -1,0 +1,78 @@
+.form-page {
+  padding-bottom: 40rpx;
+}
+
+.form-card {
+  padding: 30rpx;
+}
+
+.form-title,
+.form-copy {
+  display: block;
+}
+
+.form-title {
+  color: #172331;
+  font-size: 36rpx;
+  font-weight: 850;
+}
+
+.form-copy {
+  margin-top: 12rpx;
+  color: #66758a;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 26rpx;
+}
+
+.field > text {
+  color: #526174;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.field input,
+.field textarea {
+  min-height: 86rpx;
+  padding: 20rpx;
+  border: 1rpx solid #dbe4ef;
+  border-radius: 18rpx;
+  color: #172331;
+  background: #f8fafc;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.field textarea {
+  min-height: 160rpx;
+}
+
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  margin: 0 14rpx 14rpx 0;
+  padding: 14rpx 18rpx;
+  border-radius: 999rpx;
+  background: #eef5ff;
+  color: #2563eb;
+  font-size: 25rpx;
+  font-weight: 750;
+}
+
+.primary-btn {
+  margin-top: 32rpx;
+  width: 100%;
+  height: 86rpx;
+  border-radius: 999rpx;
+  color: #ffffff;
+  background: #2563eb;
+  font-size: 29rpx;
+  font-weight: 850;
+}

@@ -1,0 +1,43 @@
+<view class="page-shell form-page">
+  <view class="card form-card">
+    <text class="form-title">提交术后回访</text>
+    <text class="form-copy">请填写近期身体状态，医生会在医生端查看你的回访信息。</text>
+
+    <view class="field">
+      <text>近期症状</text>
+      <checkbox-group bindchange="onSymptomsChange">
+        <label wx:for="{{symptomOptions}}" wx:key="value" class="check-row">
+          <checkbox value="{{item.value}}" />
+          <text>{{item.label}}</text>
+        </label>
+      </checkbox-group>
+    </view>
+
+    <view class="field">
+      <text>最近血压</text>
+      <input value="{{bloodPressure}}" data-field="bloodPressure" placeholder="例如：128/82 mmHg" bindinput="onInput" />
+    </view>
+
+    <view class="field">
+      <text>最近心率</text>
+      <input value="{{heartRate}}" data-field="heartRate" placeholder="例如：76 次/分" bindinput="onInput" />
+    </view>
+
+    <view class="field">
+      <text>治疗/恢复状态</text>
+      <input value="{{treatmentStatus}}" data-field="treatmentStatus" placeholder="例如：已手术，术后第 2 周" bindinput="onInput" />
+    </view>
+
+    <view class="field">
+      <text>新的检查结果</text>
+      <textarea value="{{newExamResults}}" data-field="newExamResults" placeholder="如有复查 CT、实验室检查或门诊结论，可简单填写" bindinput="onInput" />
+    </view>
+
+    <view class="field">
+      <text>想补充给医生的信息</text>
+      <textarea value="{{patientNote}}" data-field="patientNote" placeholder="例如近期不适、用药变化或希望医生重点关注的问题" bindinput="onInput" />
+    </view>
+
+    <button class="primary-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交回访</button>
+  </view>
+</view>

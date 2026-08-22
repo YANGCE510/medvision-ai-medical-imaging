@@ -1,0 +1,13 @@
+<view class="page-shell feedback-page">
+  <view class="card feedback-card">
+    <text class="feedback-title">提交问题反馈</text>
+    <text class="feedback-copy">如果 AI 解释仍无法解决你的疑问，可以把问题提交给医生人工处理。</text>
+
+    <view class="field">
+      <text>你的问题</text>
+      <textarea value="{{question}}" placeholder="例如：我不理解高风险代表什么，是否需要尽快复查？" bindinput="onInput" />
+    </view>
+
+    <button class="primary-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交给医生</button>
+  </view>
+</view>

@@ -1,0 +1,47 @@
+.ui-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 28rpx;
+}
+
+.ui-page-header-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ui-page-header-title,
+.ui-page-header-subtitle {
+  display: block;
+}
+
+.ui-page-header-title {
+  color: var(--color-text);
+  font-size: 44rpx;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.ui-page-header-subtitle {
+  margin-top: 10rpx;
+  color: var(--color-text-muted);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.ui-page-header-back {
+  flex: 0 0 auto;
+  width: 64rpx;
+  height: 64rpx;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-soft);
+  background: var(--color-surface);
+  font-size: 42rpx;
+  line-height: 58rpx;
+}
+
+.ui-page-header-back::after {
+  border: 0;
+}

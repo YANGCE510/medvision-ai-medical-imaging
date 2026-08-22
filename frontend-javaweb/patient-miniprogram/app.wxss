@@ -1,0 +1,211 @@
+page {
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-soft: #eaf1ff;
+  --color-accent: #0f9f8f;
+  --color-bg: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-on-primary: #ffffff;
+  --color-border: #dbe4ef;
+  --color-border-soft: #e7edf4;
+  --color-muted-soft: #edf2f7;
+  --color-text: #172331;
+  --color-text-soft: #526174;
+  --color-text-muted: #758397;
+  --color-disabled: #c9d2df;
+  --color-success: #16815f;
+  --color-success-soft: #e8f7f0;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fff4dc;
+  --color-danger: #c0394a;
+  --color-danger-soft: #fff0f2;
+  --color-status-uploading: var(--color-primary);
+  --color-status-uploading-soft: var(--color-primary-soft);
+  --color-status-segmenting: #0891b2;
+  --color-status-segmenting-soft: #ecfeff;
+  --color-status-analyzing: var(--color-primary-dark);
+  --color-status-analyzing-soft: var(--color-primary-soft);
+  --color-status-reviewing: var(--color-warning);
+  --color-status-reviewing-soft: var(--color-warning-soft);
+  --color-status-published: var(--color-success);
+  --color-status-published-soft: var(--color-success-soft);
+  --color-status-failed: var(--color-danger);
+  --color-status-failed-soft: var(--color-danger-soft);
+  --color-disclaimer-bg: #fff7ed;
+  --color-disclaimer-border: #fed7aa;
+  --color-disclaimer-text: #8a4b12;
+  --radius-sm: 16rpx;
+  --radius-md: 24rpx;
+  --radius-lg: 32rpx;
+  --radius-pill: 999rpx;
+  --space-2: 8rpx;
+  --space-3: 12rpx;
+  --space-4: 16rpx;
+  --space-5: 20rpx;
+  --space-6: 24rpx;
+  --shadow-card: 0 12rpx 34rpx rgba(23, 35, 49, 0.06);
+  --shadow-panel: 0 20rpx 52rpx rgba(23, 35, 49, 0.08);
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+}
+
+view,
+text,
+button,
+input,
+textarea {
+  box-sizing: border-box;
+}
+
+button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+  overflow: visible;
+}
+
+button::after {
+  border: 0;
+}
+
+button[disabled] {
+  opacity: 0.55;
+}
+
+.page-shell {
+  min-height: 100vh;
+  padding: 32rpx 28rpx calc(36rpx + env(safe-area-inset-bottom));
+}
+
+.page-title {
+  display: block;
+  color: var(--color-text);
+  font-size: 44rpx;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.page-subtitle {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--color-text-muted);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.card {
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.section-title {
+  display: block;
+  color: var(--color-text);
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 88rpx;
+  border-radius: var(--radius-pill);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.secondary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72rpx;
+  padding: 0 28rpx;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  background: var(--color-surface);
+  font-size: 26rpx;
+  font-weight: 750;
+}
+
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48rpx;
+  padding: 0 18rpx;
+  border-radius: var(--radius-pill);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.risk-pill.review {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.risk-pill.focus {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.risk-pill.priority {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.safe-note {
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.medical-warning,
+.medical-disclaimer {
+  padding: 22rpx;
+  border-radius: var(--radius-md);
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.medical-warning {
+  border: 1rpx solid var(--color-danger-soft);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.medical-disclaimer {
+  border: 1rpx solid var(--color-disclaimer-border);
+  color: var(--color-disclaimer-text);
+  background: var(--color-disclaimer-bg);
+}

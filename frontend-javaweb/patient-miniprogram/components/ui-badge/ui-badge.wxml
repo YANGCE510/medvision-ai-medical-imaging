@@ -1,0 +1,1 @@
+<text class="ui-badge ui-badge-{{type}}">{{text}}<slot></slot></text>

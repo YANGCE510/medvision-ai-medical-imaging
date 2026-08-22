@@ -1,0 +1,38 @@
+<view class="page-shell followups-page">
+  <view class="hero">
+    <view>
+      <text class="page-title">术后回访</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card loading-card">正在加载回访计划...</view>
+
+  <view wx:elif="{{followUps.length}}" class="followup-list">
+    <view wx:for="{{followUps}}" wx:key="id" class="card followup-card">
+      <view class="followup-head">
+        <view>
+          <text class="followup-title">{{item.statusLabel}}</text>
+          <text class="followup-meta">建议复查时间：{{item.followUpDate}}</text>
+        </view>
+        <text class="status-pill {{item.overdue ? 'warn' : 'ok'}}">{{item.statusLabel}}</text>
+      </view>
+      <text class="followup-copy">{{item.reason}}</text>
+      <text wx:if="{{item.preparation}}" class="followup-copy muted-copy">需要准备：{{item.preparation}}</text>
+      <view wx:if="{{item.latestSubmission}}" class="submission-box">
+        <text>最近提交：{{item.latestSubmission.createdAt}}</text>
+        <text>症状：{{item.latestSubmission.symptoms || '未填写'}}</text>
+      </view>
+      <button
+        class="primary-btn"
+        data-id="{{item.id}}"
+        data-task-id="{{item.taskId}}"
+        disabled="{{item.latestSubmission}}"
+        bindtap="openFollowUp"
+      >{{item.latestSubmission ? '已填写' : '填写回访表'}}</button>
+    </view>
+  </view>
+
+  <view wx:else class="card empty-card">
+    <text class="empty-title">暂无回访计划</text>
+  </view>
+</view>

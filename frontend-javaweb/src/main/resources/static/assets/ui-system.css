@@ -1,0 +1,478 @@
+:root {
+    --color-primary: #2563eb;
+    --color-primary-dark: #1d4ed8;
+    --color-primary-soft: #eaf1ff;
+    --color-primary-border-hover: rgba(37, 99, 235, 0.28);
+    --color-accent: #0f9f8f;
+    --color-accent-soft: #e8f7f4;
+    --color-bg: #f5f7fb;
+    --color-surface: #ffffff;
+    --color-surface-subtle: #f8fafc;
+    --color-on-primary: #ffffff;
+    --color-header-bg: rgba(255, 255, 255, 0.9);
+    --color-border: #dbe4ef;
+    --color-border-soft: #e7edf4;
+    --color-muted-soft: #edf2f7;
+    --color-text: #172331;
+    --color-text-soft: #526174;
+    --color-text-muted: #758397;
+    --color-disabled: #c9d2df;
+    --color-success: #16815f;
+    --color-success-soft: #e8f7f0;
+    --color-warning: #b7791f;
+    --color-warning-soft: #fff4dc;
+    --color-danger: #c0394a;
+    --color-danger-soft: #fff0f2;
+    --color-danger-border: #f0b8c0;
+    --color-chat-user-bg: #eef2f7;
+    --color-status-uploading: var(--color-primary);
+    --color-status-uploading-soft: var(--color-primary-soft);
+    --color-status-segmenting: #0891b2;
+    --color-status-segmenting-soft: #ecfeff;
+    --color-status-analyzing: var(--color-primary-dark);
+    --color-status-analyzing-soft: var(--color-primary-soft);
+    --color-status-reviewing: var(--color-warning);
+    --color-status-reviewing-soft: var(--color-warning-soft);
+    --color-status-published: var(--color-success);
+    --color-status-published-soft: var(--color-success-soft);
+    --color-status-failed: var(--color-danger);
+    --color-status-failed-soft: var(--color-danger-soft);
+    --color-disclaimer-bg: #fff7ed;
+    --color-disclaimer-border: #fed7aa;
+    --color-disclaimer-text: #8a4b12;
+    --color-image-bg: #000000;
+    --color-image-panel: #05070b;
+    --color-image-border: #334155;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --shadow-card: 0 10px 26px rgba(23, 35, 49, 0.06);
+    --shadow-panel: 0 18px 44px rgba(23, 35, 49, 0.08);
+    --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.14);
+
+    --med-bg: var(--color-bg);
+    --med-bg-soft: var(--color-surface-subtle);
+    --med-surface: var(--color-surface);
+    --med-surface-subtle: var(--color-surface-subtle);
+    --med-border: var(--color-border);
+    --med-border-soft: var(--color-border-soft);
+    --med-text: var(--color-text);
+    --med-text-soft: var(--color-text-soft);
+    --med-text-muted: var(--color-text-muted);
+    --med-primary: var(--color-primary);
+    --med-primary-dark: var(--color-primary-dark);
+    --med-primary-soft: var(--color-primary-soft);
+    --med-accent: var(--color-accent);
+    --med-accent-soft: var(--color-accent-soft);
+    --med-success: var(--color-success);
+    --med-success-soft: var(--color-success-soft);
+    --med-warning: var(--color-warning);
+    --med-warning-soft: var(--color-warning-soft);
+    --med-danger: var(--color-danger);
+    --med-danger-soft: var(--color-danger-soft);
+    --med-radius-sm: var(--radius-sm);
+    --med-radius-md: var(--radius-md);
+    --med-radius-lg: var(--radius-lg);
+    --med-shadow-card: var(--shadow-card);
+    --med-shadow-panel: var(--shadow-panel);
+    --med-ring: var(--focus-ring);
+}
+
+body {
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+.ui-button,
+.primary-btn,
+.ghost-btn,
+.line-btn,
+.logout-btn,
+.danger-btn,
+.table-danger-btn,
+.ct-search button,
+.pagination-bar button {
+    min-height: 34px;
+    border-radius: var(--radius-sm);
+    font-weight: 750;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.ui-button,
+.primary-btn,
+.ct-search button,
+.auth-tabs button.active,
+.pagination-bar button.active {
+    border: 1px solid var(--color-primary);
+    color: var(--color-on-primary);
+    background: var(--color-primary);
+}
+
+.ui-button:hover:not(:disabled),
+.primary-btn:hover:not(:disabled),
+.ct-search button:hover,
+.pagination-bar button.active:hover {
+    background: var(--color-primary-dark);
+}
+
+.ui-button.secondary,
+.ghost-btn,
+.line-btn,
+.pagination-bar button {
+    border: 1px solid var(--color-border);
+    color: var(--color-text-soft);
+    background: var(--color-surface);
+}
+
+.ui-button.secondary:hover,
+.ghost-btn:hover,
+.line-btn:hover:not(:disabled),
+.pagination-bar button:hover:not(:disabled) {
+    border-color: var(--color-primary-border-hover);
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.line-btn:disabled {
+    cursor: not-allowed;
+    border-color: var(--color-border-soft);
+    color: var(--color-text-muted);
+    background: var(--color-muted-soft);
+}
+
+.ui-button.danger,
+.danger-btn {
+    border: 1px solid var(--color-danger);
+    color: var(--color-on-primary);
+    background: var(--color-danger);
+}
+
+.logout-btn,
+.table-danger-btn {
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger);
+    background: var(--color-danger-soft);
+}
+
+.ui-input,
+.login-panel input[type="text"],
+.login-panel input[type="email"],
+.login-panel input[type="password"],
+.login-panel select,
+.ct-search input,
+.ct-upload-form input[type="text"],
+.ct-upload-form input[type="file"],
+.ct-upload-form textarea,
+.report-review-note textarea,
+.report-chat-form textarea {
+    border-color: var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+}
+
+.ui-input:focus,
+.login-panel input:focus,
+.login-panel select:focus,
+.ct-search input:focus,
+.ct-upload-form input:focus,
+.ct-upload-form textarea:focus,
+.report-review-note textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.ui-card,
+.ui-section-card,
+.panel,
+.stat-card,
+.login-panel,
+.confirm-dialog,
+.queue-item,
+.node-status-card,
+.report-block,
+.report-json,
+.readable-section,
+.report-kpi-card,
+.report-table-wrap {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.ui-section-card,
+.panel {
+    padding: var(--space-5);
+}
+
+.ui-page-header,
+.topbar,
+.panel-head,
+.report-reading-head,
+.report-chat-head {
+    border-color: var(--color-border-soft);
+}
+
+.ui-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: 76px;
+    padding: 0 var(--space-6);
+    background: var(--color-header-bg);
+    backdrop-filter: blur(10px);
+}
+
+.ui-page-header h1,
+.ui-page-header h2,
+.topbar h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 24px;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.ui-page-header p,
+.breadcrumb,
+.panel-note,
+.muted-text {
+    color: var(--color-text-muted);
+}
+
+.ui-badge,
+.tag,
+.metric-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ui-badge.success,
+.tag.success,
+.metric-pill.good {
+    color: var(--color-success);
+    background: var(--color-success-soft);
+}
+
+.ui-badge.info,
+.tag.info {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.ui-badge.warn,
+.tag.warn,
+.metric-pill.warn {
+    color: var(--color-warning);
+    background: var(--color-warning-soft);
+}
+
+.ui-badge.danger,
+.tag.danger,
+.metric-pill.danger {
+    color: var(--color-danger);
+    background: var(--color-danger-soft);
+}
+
+.tag.good {
+    color: var(--color-success);
+    background: var(--color-success-soft);
+}
+
+.ui-badge.muted,
+.tag.muted,
+.metric-pill {
+    color: var(--color-text-muted);
+    background: var(--color-muted-soft);
+}
+
+.tag.pending,
+.ui-badge.pending {
+    color: var(--color-status-reviewing);
+    background: var(--color-status-reviewing-soft);
+}
+
+.ui-badge.uploading,
+.tag.uploading {
+    color: var(--color-status-uploading);
+    background: var(--color-status-uploading-soft);
+}
+
+.ui-badge.segmenting,
+.tag.segmenting {
+    color: var(--color-status-segmenting);
+    background: var(--color-status-segmenting-soft);
+}
+
+.ui-badge.analyzing,
+.tag.analyzing {
+    color: var(--color-status-analyzing);
+    background: var(--color-status-analyzing-soft);
+}
+
+.ui-badge.reviewing,
+.tag.reviewing {
+    color: var(--color-status-reviewing);
+    background: var(--color-status-reviewing-soft);
+}
+
+.ui-badge.published,
+.tag.published {
+    color: var(--color-status-published);
+    background: var(--color-status-published-soft);
+}
+
+.ui-badge.failed,
+.tag.failed {
+    color: var(--color-status-failed);
+    background: var(--color-status-failed-soft);
+}
+
+.ui-empty-state,
+.empty-state,
+.empty-panel p {
+    color: var(--color-text-muted);
+    line-height: 1.7;
+}
+
+.ui-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.ui-loading::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: uiSpin 760ms linear infinite;
+}
+
+@keyframes uiSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ui-chat-bubble,
+.chat-bubble,
+.chat-message.user .chat-bubble {
+    border-radius: var(--radius-lg);
+}
+
+.chat-message.user .chat-bubble {
+    color: var(--color-text);
+    background: var(--color-chat-user-bg);
+}
+
+.chat-markdown,
+.chat-bubble p,
+.chat-empty strong {
+    color: var(--color-text);
+}
+
+.chat-empty,
+.report-chat-form,
+.report-chat-panel,
+.report-chat-sidepage {
+    border-color: var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.report-chat-panel,
+.report-chat-sidepage,
+.login-panel {
+    box-shadow: var(--shadow-panel);
+}
+
+.report-3d-panel,
+.report-chat-sidepage .report-3d-panel {
+    border-color: var(--color-image-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-image-bg);
+}
+
+.report-3d-head,
+.report-3d-toolbar,
+.report-surface-controls,
+.report-3d-controls {
+    background: var(--color-image-panel);
+}
+
+.ui-patient-summary-card,
+.ui-case-summary-card,
+.ui-ct-scan-info-card,
+.ui-ai-analysis-card,
+.ui-report-section,
+.ui-medical-metric-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.ui-patient-summary-card,
+.ui-case-summary-card,
+.ui-ct-scan-info-card,
+.ui-ai-analysis-card,
+.ui-report-section {
+    padding: var(--space-5);
+}
+
+.ui-medical-metric-card {
+    min-height: 78px;
+    padding: var(--space-4);
+}
+
+.ui-medical-metric-card strong {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--color-text);
+    font-size: 18px;
+    line-height: 1.25;
+}
+
+.ui-medical-metric-card span,
+.ui-medical-metric-card em {
+    display: block;
+    color: var(--color-text-muted);
+    font-style: normal;
+}
+
+.ui-warning,
+.ui-disclaimer {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.65;
+}
+
+.ui-warning {
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger);
+    background: var(--color-danger-soft);
+}
+
+.ui-disclaimer {
+    border: 1px solid var(--color-disclaimer-border);
+    color: var(--color-disclaimer-text);
+    background: var(--color-disclaimer-bg);
+}
