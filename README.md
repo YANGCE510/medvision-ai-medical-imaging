@@ -1,81 +1,116 @@
-# PPGL Assist：智能影像辅助分析系统
+# PPGL Assist AI Medical Imaging
 
+PPGL Assist 是一个面向嗜铬细胞瘤/副神经节瘤（PPGL）场景的智能影像辅助分析系统。项目以 CT 病例为入口，整合病例管理、AI 分割推理、三维/二维查看、结构化 AI 报告、RAG 医学知识问答和权限控制，目标是展示一个完整的 AI 医疗影像应用开发闭环。
 
-## 功能概览
+> 本项目用于工程能力展示和科研原型验证，不提供临床诊断结论，不包含真实临床影像、患者隐私数据或模型权重。
 
-- CT 病例上传与任务管理
-- PPGL 肿瘤及相关解剖结构分割推理
-- 分割结果、量化指标与三维查看
-- AI 辅助报告与报告问答
-- 医生端/患者端基础业务页面
-- 患者微信小程序原型
+## 项目亮点
 
-## 系统边界
+- 完整 AI 应用链路：Vue 前端、Spring Boot 业务后端、FastAPI AI 服务分层协作。
+- 医疗数据访问控制：Spring Boot 统一处理登录、JWT、角色校验和病例权限，浏览器不直接访问 AI 服务。
+- AI 能力解耦：全器官分割与 PPGL 肿瘤分割拆分为独立能力，便于替换模型和扩展推理流程。
+- 自研模型接入：已将 ProgressPatchV5 推理代码纳入仓库，支持通过相对路径加载权重。
+- RAG 问答与报告生成：支持医学知识库检索、病例上下文组装、报告生成和报告问答。
+- 求职展示友好：代码仓库排除了权重、医学影像、运行结果、日志、构建产物和私有配置。
+
+## 系统架构
 
 ```text
 Vue Web（5173）
-  └─ 只负责页面、交互和调用 Spring Boot 公开 API
+  └─ 负责页面展示、交互和调用 Spring Boot 公开 API
        ↓ /api
 Spring Boot（8080）
-  ├─ 唯一公开业务后端：登录、JWT、角色、病例权限、业务数据
+  ├─ 唯一公开业务后端
+  ├─ 登录、JWT、角色权限、病例权限、业务数据
   └─ AI 网关：使用内部密钥和受信用户上下文调用 FastAPI
-       ↓ /api（仅本机内部访问）
-FastAPI（127.0.0.1:8000）
-  └─ 只负责 AI：全器官/PPGL 推理、指标、三维产物、RAG 和 AI 报告
+       ↓ /api（建议仅内网/本机访问）
+FastAPI（8000）
+  └─ 负责 AI 能力：全器官分割、PPGL 分割、指标、三维产物、RAG、AI 报告
 ```
 
-浏览器不再直接访问 FastAPI。Vue 中的 AI 请求使用 `/api/ai/**`，由 Spring Boot
-完成登录和角色检查后转发。FastAPI 中的病例目录是 AI 任务工作区，不是用户或业务数据库。
+职责边界：
+
+- Vue：只做用户界面，不保存密钥，不直接操作病例文件。
+- Spring Boot：作为唯一公开业务入口，负责鉴权、权限、病例与报告业务。
+- FastAPI：作为内部 AI 服务，负责推理、RAG、报告生成和 AI 文件产物管理。
+
+## 核心功能
+
+- 医生/患者/管理员登录与角色区分
+- CT 病例上传、病例列表、病例详情
+- 病例权限隔离与文件网关访问
+- 全器官分割任务
+- PPGL 肿瘤分割任务
+- 分割结果指标展示
+- 2D/3D 医学影像查看
+- AI 辅助报告生成
+- 报告问答与流式输出
+- RAG 医学知识库检索与评估样例
+- 患者微信小程序原型
 
 ## 目录结构
 
 ```text
-PPGL_upload_ready/
-├── frontend-javaweb/        # JavaWeb/Spring Boot 主项目、静态前端、小程序代码
-├── frontend-vue-prototype/  # Vue3/Vite Web 前端原型
-├── ai-backend/              # FastAPI 推理服务、报告接口、Jetson 节点封装
-├── pipeline-otafv2/         # OTAFV2 推理流水线源码
-├── envs/                    # 推理环境 Conda 配置
-└── .gitignore               # 防止误传权重、影像、日志和缓存
+.
+├── frontend-vue-prototype/  # Vue 3 + Vite Web 前端
+├── frontend-javaweb/        # Spring Boot 业务后端、静态页面、小程序原型
+├── ai-backend/              # FastAPI AI 服务、RAG、报告、ProgressPatchV5 推理
+├── pipeline-otafv2/         # OTAFV2 推理流水线
+├── envs/                    # Conda 推理环境配置
+├── docs/                    # 项目状态说明
+├── WEIGHTS_AND_DATA.md      # 权重和数据放置说明
+└── .gitignore               # 排除隐私数据、权重、日志和构建产物
 ```
 
 ## 环境要求
 
-按实际运行的模块分别准备环境：
+- JDK 21
+- Maven
+- MySQL
+- Node.js / npm
+- Conda / Python 3.10
+- PyTorch、MONAI、nnUNetv2、nibabel、SimpleITK、scikit-image 等推理依赖
 
-- JavaWeb 主项目：JDK 21、Maven、MySQL。
-- Vue 前端原型：Node.js 与 npm。
-- AI 后端与 OTAFV2 推理：Conda、Python 3.10、PyTorch 2.5.1、MONAI、nnUNetv2、nibabel、SimpleITK、scikit-image 等。
-- GPU 推理环境：参考 `envs/environment.inference.yml`，默认包含 `pytorch-cuda=12.1`。
-- CPU/Jetson CPU 推理环境：参考 `envs/environment.inference.jetson-cpu.yml`。
-- 完整分割推理还需要 TotalSegmentator/nnUNet 对应运行环境和外部模型权重。
-
-Conda 环境创建示例：
+GPU 推理环境可参考：
 
 ```bash
 conda env create -f envs/environment.inference.yml
 conda activate ppgl
 ```
 
-CPU/Jetson CPU 环境示例：
+CPU/Jetson CPU 环境可参考：
 
 ```bash
 conda env create -f envs/environment.inference.jetson-cpu.yml
 conda activate ppgl
 ```
 
-## 快速运行 JavaWeb 主项目
+## 快速启动
+
+### 1. 启动 FastAPI AI 服务
+
+```bash
+cd ai-backend/backend
+
+export PPGL_INTERNAL_API_KEY=change-this-in-local-env
+
+uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+### 2. 启动 Spring Boot 业务后端
 
 ```bash
 cd frontend-javaweb
 
 export MYSQL_USER=root
 export MYSQL_PASSWORD=your_mysql_password
+export PPGL_AUTH_JWT_SECRET=change-this-to-a-random-string-at-least-32-bytes
+export PPGL_INTERNAL_API_KEY=change-this-in-local-env
 
 mvn spring-boot:run
 ```
 
-访问：
+访问 Spring Boot：
 
 ```text
 http://127.0.0.1:8080/
@@ -87,46 +122,61 @@ http://127.0.0.1:8080/
 frontend-javaweb/src/main/resources/schema.sql
 ```
 
-主要配置文件：
-
-```text
-frontend-javaweb/src/main/resources/application.properties
-```
-
-默认 AI 推理服务地址示例：
-
-```properties
-ppgl.pipeline.base-url=http://127.0.0.1:8000
-ppgl.llm.chat-url=http://127.0.0.1:8000/api/llm/chat/stream
-```
-
-部署到 Jetson 或服务器时，请按实际地址修改上述配置。
-
-## 启动 AI 后端
-
-```bash
-cd ai-backend/backend
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-完整推理需要另外准备模型权重、TotalSegmentator/nnUNet 运行环境，以及合法授权、已脱敏的测试影像。具体说明见 `WEIGHTS_AND_DATA.md`。
-
-ProgressPatchV5 推理源码已收录在 `ai-backend/progress_patch_v5/`，默认从项目内相对路径
-`ai-backend/progress_patch_v5/weights/model_best.pth` 加载权重。也可使用
-`PPGL_V5_MODEL_DIR`、`PPGL_V5_CHECKPOINT` 和 `PPGL_V5_MODEL_CONFIG` 覆盖；相对值会基于项目目录或模型目录解析。
-
-## Vue Web 前端
-
-启动唯一的 Web 前端：
+### 3. 启动 Vue Web 前端
 
 ```bash
 cd frontend-vue-prototype
+
 npm install
 npm run dev
 ```
 
-浏览器访问 Vite 输出的本地地址，通常为：
+访问 Vue：
 
 ```text
 http://127.0.0.1:5173/
 ```
+
+## 模型权重与医学数据
+
+公开仓库不包含模型权重、真实医学影像和运行输出。完整运行推理前，需要在本地准备以下资产：
+
+- ProgressPatchV5 PPGL 分割权重，默认位置：`ai-backend/progress_patch_v5/weights/model_best.pth`
+- OTAFV2 / nnUNet / TotalSegmentator 所需权重和运行环境
+- 已授权、已脱敏的 `.nii.gz` 测试影像
+
+ProgressPatchV5 也支持通过环境变量覆盖模型路径：
+
+```bash
+export PPGL_V5_CHECKPOINT=ai-backend/progress_patch_v5/weights/model_best.pth
+```
+
+更多说明见 [WEIGHTS_AND_DATA.md](WEIGHTS_AND_DATA.md)。
+
+## 安全设计
+
+- 前端不保存后端内部密钥。
+- Vue 只访问 Spring Boot 公开 API。
+- Spring Boot 负责用户认证、JWT 签发、角色判断和病例权限控制。
+- FastAPI 使用内部 API Key 和受信用户上下文，不作为公网直接入口。
+- `.gitignore` 已排除 `.env`、证书、权重、医学影像、上传目录、任务目录、日志、缓存和构建产物。
+
+公开部署前建议：
+
+- 使用强随机 `PPGL_AUTH_JWT_SECRET` 和 `PPGL_INTERNAL_API_KEY`。
+- 不提交真实病例、真实患者信息、模型权重和私有配置。
+- 将 FastAPI 限制在内网或本机访问。
+- 对公开仓库执行密钥扫描。
+
+## 当前状态
+
+本仓库当前重点展示 AI 应用开发能力，包括：
+
+- 前后端业务闭环
+- AI 服务网关化接入
+- 医学影像推理流程封装
+- 自研分割模型推理集成
+- RAG 与 AI 报告能力
+- 医疗数据访问控制意识
+
+仍需根据实际部署环境补齐外部模型权重、测试影像、数据库和推理依赖。
