@@ -10,6 +10,23 @@
 - 医生端/患者端基础业务页面
 - 患者微信小程序原型
 
+## 系统边界
+
+```text
+Vue Web（5173）
+  └─ 只负责页面、交互和调用 Spring Boot 公开 API
+       ↓ /api
+Spring Boot（8080）
+  ├─ 唯一公开业务后端：登录、JWT、角色、病例权限、业务数据
+  └─ AI 网关：使用内部密钥和受信用户上下文调用 FastAPI
+       ↓ /api（仅本机内部访问）
+FastAPI（127.0.0.1:8000）
+  └─ 只负责 AI：全器官/PPGL 推理、指标、三维产物、RAG 和 AI 报告
+```
+
+浏览器不再直接访问 FastAPI。Vue 中的 AI 请求使用 `/api/ai/**`，由 Spring Boot
+完成登录和角色检查后转发。FastAPI 中的病例目录是 AI 任务工作区，不是用户或业务数据库。
+
 ## 目录结构
 
 ```text
@@ -94,9 +111,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 完整推理需要另外准备模型权重、TotalSegmentator/nnUNet 运行环境，以及合法授权、已脱敏的测试影像。具体说明见 `WEIGHTS_AND_DATA.md`。
 
-## Vue 前端原型
+ProgressPatchV5 推理源码已收录在 `ai-backend/progress_patch_v5/`，默认从项目内相对路径
+`ai-backend/progress_patch_v5/weights/model_best.pth` 加载权重。也可使用
+`PPGL_V5_MODEL_DIR`、`PPGL_V5_CHECKPOINT` 和 `PPGL_V5_MODEL_CONFIG` 覆盖；相对值会基于项目目录或模型目录解析。
 
-如需单独展示 Vue Web 原型：
+## Vue Web 前端
+
+启动唯一的 Web 前端：
 
 ```bash
 cd frontend-vue-prototype

@@ -36,11 +36,11 @@ from monai.transforms import (
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-DEFAULT_PACKAGE_DIR = Path("/path/to/PPGL/otafv2_inference_package_20260524")
+PROJECT_ROOT = PROJECT_DIR.parent
+DEFAULT_PACKAGE_DIR = PROJECT_ROOT / "pipeline-otafv2"
 DEFAULT_RAW_GCP_DIR = DEFAULT_PACKAGE_DIR / "raw_gcp"
-DEFAULT_TOTALSEG_ROOT = Path("/path/to/TotalSegmentator")
+DEFAULT_TOTALSEG_ROOT = ""
 DEFAULT_CHECKPOINT = PROJECT_DIR / "ckpt/model_best_160.pth"
-DEFAULT_IMAGE = Path("/path/to/PPGL/dataset/images/PPGL_Tr_0029.nii.gz")
 DEFAULT_OUTPUT_ROOT = PROJECT_DIR / "runs"
 
 GCP_TUMOR_LABEL = 10
@@ -245,15 +245,11 @@ def prepend_env_path(env: dict[str, str], key: str, values: list[Path]) -> None:
 def runtime_env(args: argparse.Namespace) -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONNOUSERSITE"] = "1"
-    prepend_env_path(
-        env,
-        "LD_LIBRARY_PATH",
-        [
-            Path(sys.executable).resolve().parent.parent / "lib",
-            Path("/usr/local/cuda-11.4/lib64"),
-        ],
-    )
-    prepend_env_path(env, "PYTHONPATH", [Path(args.raw_gcp_dir), Path(args.package_dir), Path(args.totalseg_root)])
+    prepend_env_path(env, "LD_LIBRARY_PATH", [Path(sys.executable).resolve().parent.parent / "lib"])
+    python_paths: list[Path] = []
+    if str(args.totalseg_root).strip():
+        python_paths.append(Path(args.totalseg_root))
+    prepend_env_path(env, "PYTHONPATH", python_paths)
     return env
 
 
@@ -862,6 +858,16 @@ def rois_for_mode(mode: str) -> list[str] | None:
     raise ValueError(f"Unknown mode: {mode}")
 
 
+def totalsegmentator_executable() -> str:
+    environment_command = Path(sys.executable).resolve().parent / "TotalSegmentator"
+    if environment_command.is_file():
+        return str(environment_command)
+    command = shutil.which("TotalSegmentator")
+    if command:
+        return command
+    raise FileNotFoundError("TotalSegmentator command not found. Install the project environment first.")
+
+
 def run_totalseg(args: argparse.Namespace, case_dir: Path, log_path: Path) -> Path:
     raw_dir = ensure_dir(case_dir / "total" / "raw_masks")
     stats_path = case_dir / "total" / "totalseg_summary.json"
@@ -906,7 +912,7 @@ def run_totalseg(args: argparse.Namespace, case_dir: Path, log_path: Path) -> Pa
         return raw_dir
 
     cmd = [
-        "TotalSegmentator",
+        totalsegmentator_executable(),
         "-i",
         str(args.image),
         "-o",
@@ -1189,6 +1195,92 @@ def compose_final_label(
     )
     append_log(log_path, f"Final fused label saved: {final_path}")
     return final_path, label_map
+
+
+def compose_totalseg_output(
+    args: argparse.Namespace,
+    case_dir: Path,
+    total_dir: Path,
+    log_path: Path,
+) -> tuple[Path, dict[str, Any]]:
+    fusion_dir = ensure_dir(case_dir / "fusion")
+    analysis_dir = ensure_dir(case_dir / "analysis")
+    final_path = fusion_dir / f"{args.case_id}_final_seg.nii.gz"
+    label_map_path = fusion_dir / "label_map.json"
+    metrics_path = analysis_dir / "clinical_metrics.json"
+    report_path = analysis_dir / "report.md"
+
+    reference_img = nib.load(str(args.image))
+    final = np.zeros(reference_img.shape[:3], dtype=np.uint16)
+    voxel_volume_mm3 = float(np.prod(reference_img.header.get_zooms()[:3]))
+    label_map: dict[int, str] = {0: "background"}
+    organ_metrics: dict[str, dict[str, float | int]] = {}
+
+    next_label = 1
+    for mask_path in sorted(total_dir.glob("*.nii.gz")):
+        organ_name = mask_path.name[:-7] if mask_path.name.endswith(".nii.gz") else mask_path.stem
+        mask = load_mask_on_reference(mask_path, reference_img)
+        voxel_count = int(mask.sum())
+        if voxel_count == 0:
+            continue
+        final[mask] = next_label
+        label_map[next_label] = f"totalseg:{organ_name}"
+        organ_metrics[organ_name] = {
+            "voxel_count": voxel_count,
+            "volume_ml": round(voxel_count * voxel_volume_mm3 / 1000.0, 3),
+        }
+        next_label += 1
+
+    if len(label_map) == 1:
+        raise RuntimeError("TotalSegmentator did not produce any non-empty organ masks.")
+
+    header = reference_img.header.copy()
+    header.set_data_dtype(np.uint16)
+    nib.save(nib.Nifti1Image(final, reference_img.affine, header), str(final_path))
+    write_json(
+        label_map_path,
+        {
+            "case_id": args.case_id,
+            "pipeline": "totalsegmentator_only",
+            "task": "total",
+            "final_seg": str(final_path),
+            "tumor_priority": False,
+            "label_map": {str(key): value for key, value in label_map.items()},
+        },
+    )
+
+    metrics = {
+        "case_id": args.case_id,
+        "pipeline": "totalsegmentator_only",
+        "task": "total",
+        "mode": args.mode,
+        "image": str(args.image),
+        "voxel_volume_mm3": voxel_volume_mm3,
+        "organ_count": len(organ_metrics),
+        "organs": organ_metrics,
+        "outputs": {
+            "final_seg": str(final_path),
+            "totalseg_dir": str(total_dir),
+            "report": str(report_path),
+        },
+    }
+    write_json(metrics_path, metrics)
+
+    lines = [
+        f"# Case {args.case_id}",
+        "",
+        "- Pipeline: `TotalSegmentator only`",
+        "- Task: `total`",
+        f"- Segmented structures: `{len(organ_metrics)}`",
+        f"- Combined label: `{final_path}`",
+        "",
+        "## Organ volumes",
+    ]
+    for organ_name, values in sorted(organ_metrics.items()):
+        lines.append(f"- {organ_name}: {values['volume_ml']:.3f} ml")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    append_log(log_path, f"TotalSegmentator combined label saved: {final_path}")
+    return final_path, metrics
 
 
 def surface_points(mask: np.ndarray, spacing: tuple[float, float, float]) -> np.ndarray:
@@ -1826,87 +1918,37 @@ def prepare_case_dir(args: argparse.Namespace) -> tuple[Path, Path]:
 def validate_args(args: argparse.Namespace) -> None:
     args.image = Path(args.image).expanduser().resolve()
     args.output_root = Path(args.output_root).expanduser().resolve()
-    args.package_dir = Path(args.package_dir).expanduser().resolve()
-    args.raw_gcp_dir = Path(args.raw_gcp_dir).expanduser().resolve()
-    args.totalseg_root = Path(args.totalseg_root).expanduser().resolve()
+    if str(args.totalseg_root).strip():
+        args.totalseg_root = Path(args.totalseg_root).expanduser().resolve()
     if str(args.totalseg_existing_dir).strip():
         args.totalseg_existing_dir = str(Path(args.totalseg_existing_dir).expanduser().resolve())
-    if str(args.reuse_gcp_path).strip():
-        args.reuse_gcp_path = str(Path(args.reuse_gcp_path).expanduser().resolve())
-    args.gcp_checkpoint = Path(args.gcp_checkpoint).expanduser().resolve()
     if not args.case_id:
         args.case_id = normalize_case_id(args.image)
-    for path, name in [
-        (args.image, "image"),
-        (args.package_dir, "package-dir"),
-        (args.raw_gcp_dir, "raw-gcp-dir"),
-        (args.totalseg_root, "totalseg-root"),
-        (args.gcp_checkpoint, "gcp-checkpoint"),
-    ]:
-        if not Path(path).exists():
-            raise FileNotFoundError(f"{name} not found: {path}")
-    if str(args.reuse_gcp_path).strip() and not Path(args.reuse_gcp_path).exists():
-        raise FileNotFoundError(f"reuse-gcp-path not found: {args.reuse_gcp_path}")
-    if shutil.which("TotalSegmentator") is None:
-        raise FileNotFoundError("TotalSegmentator command not found. Activate ppgl-gpu38 first.")
+    if not args.image.exists():
+        raise FileNotFoundError(f"image not found: {args.image}")
+    if str(args.totalseg_root).strip() and not Path(args.totalseg_root).exists():
+        raise FileNotFoundError(f"totalseg-root not found: {args.totalseg_root}")
+    totalsegmentator_executable()
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Unified PPGL case pipeline for Jetson deployment.")
+    parser = argparse.ArgumentParser(description="Standalone TotalSegmentator full-organ pipeline.")
     parser.add_argument("--case-id", default="")
-    parser.add_argument("--image", default=str(DEFAULT_IMAGE))
+    parser.add_argument("--image", required=True)
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--run-name", default="")
-    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="jetson_fast")
+    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="full_total")
     parser.add_argument("--force", action="store_true")
 
-    parser.add_argument("--package-dir", default=str(DEFAULT_PACKAGE_DIR))
-    parser.add_argument("--raw-gcp-dir", default=str(DEFAULT_RAW_GCP_DIR))
     parser.add_argument("--totalseg-root", default=str(DEFAULT_TOTALSEG_ROOT))
     parser.add_argument("--totalseg-existing-dir", default="")
-    parser.add_argument("--gcp-checkpoint", default=str(DEFAULT_CHECKPOINT))
-    parser.add_argument("--reuse-gcp-path", default="")
-
-    parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--totalseg-device", default="gpu:0")
-    parser.add_argument("--seed", type=int, default=1123)
-
-    parser.add_argument("--gcp-num-classes", type=int, default=11)
-    parser.add_argument("--gcp-tumor-label", type=int, default=GCP_TUMOR_LABEL)
-    parser.add_argument("--gcp-backend", choices=["torch", "trt"], default="torch")
-    parser.add_argument("--gcp-engine", default="")
-    parser.add_argument("--gcp-roi-size", type=int, default=160)
-    parser.add_argument("--gcp-sw-batch-size", type=int, default=1)
-    parser.add_argument("--gcp-overlap", type=float, default=0.0)
-    parser.add_argument("--gcp-fg-margin", type=int, default=10)
-    parser.add_argument("--gcp-stitch-device", default="cpu", choices=["cpu", "cuda", "cuda:0"])
-    parser.add_argument("--no-gcp-auto-lowmem", action="store_true")
-    parser.add_argument("--gcp-local-roi", dest="gcp_local_roi", action="store_true", default=None)
-    parser.add_argument("--no-gcp-local-roi", dest="gcp_local_roi", action="store_false")
-    parser.add_argument("--gcp-local-roi-rois", default=",".join(FULL_ANALYSIS_ANCHORS))
-    parser.add_argument("--gcp-local-roi-margin-mm", type=float, default=80.0)
-    parser.add_argument("--gcp-local-roi-fallback-min-voxels", type=int, default=1)
-    parser.add_argument("--gcp-amp", dest="gcp_amp", action="store_true", default=True)
-    parser.add_argument("--no-gcp-amp", dest="gcp_amp", action="store_false")
-    parser.add_argument("--allow-tf32", dest="allow_tf32", action="store_true", default=True)
-    parser.add_argument("--no-allow-tf32", dest="allow_tf32", action="store_false")
-    parser.add_argument("--no-cudnn-benchmark", action="store_true")
-    parser.add_argument("--no-progress", action="store_true")
 
     parser.add_argument("--totalseg-fast", action="store_true")
     parser.add_argument("--totalseg-fastest", action="store_true")
     parser.add_argument("--totalseg-quiet", action="store_true")
     parser.add_argument("--totalseg-robust-crop", action="store_true")
 
-    parser.add_argument("--apr-anchor-rois", default=",".join(DEFAULT_APR_ANCHOR_ROIS))
-    parser.add_argument("--apr-tau", type=float, default=0.50)
-    parser.add_argument("--apr-min-component-voxels", type=int, default=0)
-    parser.add_argument("--apr-good-distance-mm", type=float, default=8.0)
-    parser.add_argument("--apr-bad-distance-mm", type=float, default=80.0)
-    parser.add_argument("--apr-volume-ref-mm3", type=float, default=2222.0)
-    parser.add_argument("--apr-weight-anatomy", type=float, default=0.75)
-    parser.add_argument("--apr-weight-geometry", type=float, default=0.25)
-    parser.add_argument("--analysis-fast", action="store_true")
     return parser
 
 
@@ -1920,40 +1962,11 @@ def main() -> None:
 
     append_log(log_path, f"Case directory: {case_dir}")
     append_log(log_path, f"Python: {sys.executable}")
-    append_log(log_path, f"Torch: {torch.__version__}, cuda_available={torch.cuda.is_available()}")
-    if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = not bool(args.no_cudnn_benchmark)
-        if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
-            torch.backends.cuda.matmul.allow_tf32 = bool(args.allow_tf32)
-        append_log(
-            log_path,
-            "CUDA performance settings: "
-            f"cudnn_benchmark={torch.backends.cudnn.benchmark}, "
-            f"allow_tf32={bool(args.allow_tf32)}, gcp_amp={bool(args.gcp_amp)}, "
-            f"gcp_stitch_device={args.gcp_stitch_device}, "
-            f"gcp_auto_lowmem={not bool(args.no_gcp_auto_lowmem)}",
-        )
-
-    total_dir: Path | None = None
-    if should_use_gcp_local_roi(args):
-        append_log(log_path, "GCPV5 local ROI mode is active; running TotalSegmentator before GCPV5.")
-        with timed_stage(log_path, timings, "totalseg", "1/5 TotalSegmentator anatomy"):
-            total_dir = run_totalseg(args, case_dir, log_path)
-        with timed_stage(log_path, timings, "gcpv5", "2/5 GCPV5 tumor inference"):
-            gcp_path = run_gcpv5(args, case_dir, log_path, total_dir)
-    else:
-        with timed_stage(log_path, timings, "gcpv5", "1/5 GCPV5 tumor inference"):
-            gcp_path = run_gcpv5(args, case_dir, log_path)
-        with timed_stage(log_path, timings, "totalseg", "2/5 TotalSegmentator anatomy"):
-            total_dir = run_totalseg(args, case_dir, log_path)
-    if total_dir is None:
-        raise RuntimeError("TotalSegmentator stage did not produce a mask directory.")
-    with timed_stage(log_path, timings, "apr", "3/5 APR filtering"):
-        tumor_apr_path, apr_summary = run_apr(args, case_dir, gcp_path, total_dir, log_path)
-    with timed_stage(log_path, timings, "fusion", "4/5 Tumor-priority fusion"):
-        final_path, _label_map = compose_final_label(args, case_dir, total_dir, tumor_apr_path, log_path)
-    with timed_stage(log_path, timings, "analysis", "5/5 Clinical metrics"):
-        analyze_case(args, case_dir, total_dir, gcp_path, tumor_apr_path, final_path, apr_summary, log_path)
+    append_log(log_path, "Pipeline: TotalSegmentator only")
+    with timed_stage(log_path, timings, "totalseg", "1/2 TotalSegmentator full-organ segmentation"):
+        total_dir = run_totalseg(args, case_dir, log_path)
+    with timed_stage(log_path, timings, "output", "2/2 TotalSegmentator output assembly"):
+        final_path, _metrics = compose_totalseg_output(args, case_dir, total_dir, log_path)
 
     timings["total"] = time.perf_counter() - pipeline_start
     timing_path = case_dir / "timing.json"
@@ -1967,7 +1980,7 @@ def main() -> None:
     )
     append_log(log_path, f"Timing saved: {timing_path}")
 
-    print(f"Pipeline finished: {case_dir}")
+    print(f"TotalSegmentator pipeline finished: {case_dir}")
     print(f"Final label: {case_dir / 'fusion' / (args.case_id + '_final_seg.nii.gz')}")
     print(f"Report: {case_dir / 'analysis' / 'report.md'}")
     print(f"Timing: {timing_path}")

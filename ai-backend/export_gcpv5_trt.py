@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -14,10 +15,10 @@ import torch
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-DEFAULT_RAW_GCP_DIR = Path("/path/to/PPGL/otafv2_inference_package_20260524/raw_gcp")
+DEFAULT_RAW_GCP_DIR = PROJECT_DIR.parent / "pipeline-otafv2" / "raw_gcp"
 DEFAULT_CHECKPOINT = PROJECT_DIR / "ckpt" / "model_best_160.pth"
 DEFAULT_OUTPUT_DIR = PROJECT_DIR / "engines" / "gcpv5"
-DEFAULT_TRTEXEC = Path("/usr/src/tensorrt/bin/trtexec")
+DEFAULT_TRTEXEC = os.environ.get("TRTEXEC", "trtexec")
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -61,9 +62,9 @@ def ensure_onnx_available() -> None:
         import onnx  # noqa: F401
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "Python package 'onnx' is required by torch.onnx.export but is not installed in ppgl-gpu38. "
-            "Install a local wheel, for example: "
-            "/path/to/anaconda3/envs/ppgl-gpu38/bin/python -m pip install --only-binary=:all: onnx"
+            "Python package 'onnx' is required by torch.onnx.export. "
+            "Install it in the active environment with: "
+            "python -m pip install --only-binary=:all: onnx"
         ) from exc
 
 
@@ -79,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--onnx-only", action="store_true")
     parser.add_argument("--no-fp16", dest="fp16", action="store_false", default=True)
-    parser.add_argument("--trtexec", type=Path, default=DEFAULT_TRTEXEC)
+    parser.add_argument("--trtexec", default=DEFAULT_TRTEXEC)
     parser.add_argument("--workspace-mb", type=int, default=2048)
     parser.add_argument("--trtexec-runs", type=int, default=100)
     return parser
@@ -124,12 +125,20 @@ def build_engine(args: argparse.Namespace, onnx_path: Path, engine_path: Path, l
         return
     if not onnx_path.exists():
         raise FileNotFoundError(f"ONNX file not found: {onnx_path}")
-    trtexec = args.trtexec.expanduser()
-    if not trtexec.exists():
-        raise FileNotFoundError(f"trtexec not found: {trtexec}")
+    configured_trtexec = str(args.trtexec).strip()
+    trtexec_path = Path(configured_trtexec).expanduser()
+    if len(trtexec_path.parts) == 1:
+        discovered = shutil.which(configured_trtexec)
+        if not discovered:
+            raise FileNotFoundError(f"trtexec not found on PATH: {configured_trtexec}")
+        trtexec_path = Path(discovered)
+    elif not trtexec_path.is_absolute():
+        trtexec_path = (PROJECT_DIR / trtexec_path).resolve()
+    if not trtexec_path.is_file():
+        raise FileNotFoundError(f"trtexec not found: {trtexec_path}")
 
     cmd = [
-        str(trtexec),
+        str(trtexec_path),
         f"--onnx={onnx_path}",
         f"--saveEngine={engine_path}",
         f"--workspace={int(args.workspace_mb)}",

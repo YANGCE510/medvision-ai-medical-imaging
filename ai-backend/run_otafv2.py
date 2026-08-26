@@ -17,7 +17,7 @@ from PIL import Image
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent
-CODE_ALL_DIR = Path("/path/to/PPGL/Code_ALL")
+CODE_ALL_DIR = FRONTEND_DIR
 CODE_ALL_PIPELINE = CODE_ALL_DIR / "run_case_pipeline.py"
 
 
@@ -122,7 +122,7 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
     if not CODE_ALL_PIPELINE.exists():
         raise FileNotFoundError(f"Code_ALL pipeline not found: {CODE_ALL_PIPELINE}")
 
-    device, totalseg_device = resolve_device(args.device)
+    _device, totalseg_device = resolve_device(args.device)
     run_root = output_dir
     run_name = "code_all"
     cmd = [
@@ -138,33 +138,16 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
         run_name,
         "--mode",
         str(args.mode),
-        "--device",
-        device,
         "--totalseg-device",
         totalseg_device,
-        "--gcp-backend",
-        str(args.gcp_backend),
-        "--analysis-fast",
     ]
 
     if args.force:
         cmd.append("--force")
-    if args.gcp_amp:
-        cmd.append("--gcp-amp")
-    else:
-        cmd.append("--no-gcp-amp")
-    if args.allow_tf32:
-        cmd.append("--allow-tf32")
-    else:
-        cmd.append("--no-allow-tf32")
-    if str(args.gcp_engine).strip():
-        cmd.extend(["--gcp-engine", str(args.gcp_engine)])
     if args.totalseg_fast:
         cmd.append("--totalseg-fast")
     if args.totalseg_fastest:
         cmd.append("--totalseg-fastest")
-    if str(args.reuse_gcp_path).strip():
-        cmd.extend(["--reuse-gcp-path", str(args.reuse_gcp_path)])
     if str(args.totalseg_existing_dir).strip():
         cmd.extend(["--totalseg-existing-dir", str(args.totalseg_existing_dir)])
 
@@ -212,10 +195,6 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
     timing = load_json(timing_path) if timing_path.exists() else {}
 
     labels = label_payload.get("label_map", {})
-    tumor_volume_ml = metrics.get("apr_tumor_volume_ml")
-    components = metrics.get("components", [])
-    largest_component = components[0] if components else {}
-
     result = {
         "case_id": case_id,
         "status": "completed",
@@ -233,16 +212,15 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
         "segmentation": {
             "label_count": len(labels),
             "label_map": labels,
-            "tumor_priority": bool(label_payload.get("tumor_priority", True)),
+            "tumor_priority": False,
         },
         "clinical_metrics": metrics,
         "summary": {
-            "tumor_volume_ml": tumor_volume_ml,
-            "tumor_component_count": metrics.get("tumor_component_count"),
-            "tumor_side_by_nearest_kidney": metrics.get("tumor_side_by_nearest_kidney"),
-            "anchor_distances_mm": metrics.get("anchor_distances_mm", {}),
-            "largest_component_bbox_size_mm": largest_component.get("bbox_size_mm"),
-            "largest_component_centroid_mm": largest_component.get("centroid_mm_from_origin"),
+            "pipeline": metrics.get("pipeline"),
+            "task": metrics.get("task"),
+            "organ_count": metrics.get("organ_count"),
+            "voxel_volume_mm3": metrics.get("voxel_volume_mm3"),
+            "organs": metrics.get("organs", {}),
         },
         "timing": timing,
     }
@@ -251,21 +229,14 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Frontend entrypoint for OTAFV2/PPGL inference.")
+    parser = argparse.ArgumentParser(description="Frontend entrypoint for TotalSegmentator inference.")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--case-id", default="")
-    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="abdomen")
+    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="full_total")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--totalseg-existing-dir", default="")
-    parser.add_argument("--reuse-gcp-path", default="")
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--gcp-backend", choices=["torch", "trt"], default="torch")
-    parser.add_argument("--gcp-engine", default="")
-    parser.add_argument("--gcp-amp", dest="gcp_amp", action="store_true", default=True)
-    parser.add_argument("--no-gcp-amp", dest="gcp_amp", action="store_false")
-    parser.add_argument("--allow-tf32", dest="allow_tf32", action="store_true", default=True)
-    parser.add_argument("--no-allow-tf32", dest="allow_tf32", action="store_false")
     parser.add_argument("--totalseg-fast", action="store_true")
     parser.add_argument("--totalseg-fastest", action="store_true")
     return parser
@@ -278,9 +249,6 @@ def main() -> None:
     args.output = args.output.expanduser().resolve()
     if str(args.totalseg_existing_dir).strip():
         args.totalseg_existing_dir = Path(str(args.totalseg_existing_dir)).expanduser().resolve()
-    if str(args.reuse_gcp_path).strip():
-        args.reuse_gcp_path = Path(str(args.reuse_gcp_path)).expanduser().resolve()
-
     if not args.input.exists():
         raise FileNotFoundError(f"Input file not found: {args.input}")
 

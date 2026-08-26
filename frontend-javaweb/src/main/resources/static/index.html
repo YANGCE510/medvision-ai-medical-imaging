@@ -49,18 +49,9 @@
                 <input v-model.trim="authForm.phone" type="text" autocomplete="tel" placeholder="请输入 11 位手机号">
             </label>
 
-            <label v-if="authMode === 'register' && authForm.role === 'PATIENT'">
+            <label v-if="authMode === 'register'">
                 <span>身份证号</span>
                 <input v-model.trim="authForm.patientIdCard" type="text" placeholder="请输入病人身份证号">
-            </label>
-
-            <label v-if="authMode === 'register'">
-                <span>用户类型</span>
-                <select v-model="authForm.role">
-                    <option value="DOCTOR">医生</option>
-                    <option value="PATIENT">病人</option>
-                    <option value="ADMIN">管理员</option>
-                </select>
             </label>
 
             <label>

@@ -178,6 +178,21 @@ textarea {
   box-shadow: 0 0 0 1px var(--ppgl-border-strong) inset;
 }
 
+.rename-case-message-box .el-input__wrapper {
+  background: #ffffff;
+}
+
+.rename-case-message-box .el-input__inner {
+  color: #1f2937;
+  caret-color: #0f766e;
+  -webkit-text-fill-color: #1f2937;
+}
+
+.rename-case-message-box .el-input__inner::placeholder {
+  color: #6b7280;
+  -webkit-text-fill-color: #6b7280;
+}
+
 .el-descriptions__body {
   background: transparent;
 }

@@ -20,7 +20,7 @@
           />
         </el-form-item>
 
-        <el-button type="primary" size="large" class="login-button" @click="handleLogin">
+        <el-button type="primary" size="large" class="login-button" :loading="submitting" @click="handleLogin">
           登录系统
         </el-button>
       </el-form>
@@ -31,14 +31,32 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import request from '../api/request'
 
 const router = useRouter()
 
-const username = ref('doctor')
-const password = ref('123456')
+const username = ref('')
+const password = ref('')
+const submitting = ref(false)
 
-function handleLogin() {
-  router.push('/dashboard')
+async function handleLogin() {
+  if (!username.value.trim() || !password.value) {
+    return
+  }
+  submitting.value = true
+  try {
+    const response = await request.post('/auth/login', {
+      username: username.value.trim(),
+      password: password.value
+    })
+    localStorage.setItem('ppglVueUser', JSON.stringify(response.data?.user || {}))
+    await router.push('/dashboard')
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || '账号或密码错误')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 

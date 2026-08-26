@@ -18,13 +18,16 @@ public class ReportChatClient {
 
     private final ObjectMapper objectMapper;
     private final String chatUrl;
+    private final String internalApiKey;
 
     public ReportChatClient(
             ObjectMapper objectMapper,
-            @Value("${ppgl.llm.chat-url:http://127.0.0.1:8000/api/llm/chat/stream}") String chatUrl
+            @Value("${ppgl.llm.chat-url:http://127.0.0.1:8000/api/llm/chat/stream}") String chatUrl,
+            @Value("${ppgl.internal.api-key}") String internalApiKey
     ) {
         this.objectMapper = objectMapper;
         this.chatUrl = chatUrl;
+        this.internalApiKey = internalApiKey;
     }
 
     public String stream(JsonNode requestBody, OutputStream output) throws IOException {
@@ -35,6 +38,7 @@ public class ReportChatClient {
         connection.setReadTimeout(0);
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Accept", "application/x-ndjson");
+        connection.setRequestProperty("X-PPGL-Internal-Key", internalApiKey);
 
         try (OutputStream request = connection.getOutputStream()) {
             request.write(objectMapper.writeValueAsBytes(requestBody));

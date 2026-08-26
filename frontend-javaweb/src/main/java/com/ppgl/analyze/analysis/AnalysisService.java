@@ -74,11 +74,11 @@ public class AnalysisService {
         );
     }
 
-    public AnalysisBoardResponse submit(AnalysisSubmitRequest request) {
+    public AnalysisBoardResponse submit(Long requesterId, AnalysisSubmitRequest request) {
         if (request == null || request.ctImageIds() == null || request.ctImageIds().isEmpty()) {
             throw new AnalysisException("请选择要分析的 CT");
         }
-        requireDoctorId(request.requesterId());
+        requireDoctorId(requesterId);
 
         String mode = normalizeOption(request.mode(), "total");
         String device = normalizeOption(request.device(), "cuda");
@@ -88,12 +88,12 @@ public class AnalysisService {
             if (ctImageId == null || analysisRepository.hasActiveTaskForCt(ctImageId)) {
                 continue;
             }
-            AnalysisCandidate candidate = analysisRepository.findCandidateById(ctImageId, request.requesterId())
+            AnalysisCandidate candidate = analysisRepository.findCandidateById(ctImageId, requesterId)
                     .orElse(null);
             if (candidate == null || !isEligible(candidate.status())) {
                 continue;
             }
-            AnalysisTask task = analysisRepository.createTask(candidate, request.requesterId(), mode, device);
+            AnalysisTask task = analysisRepository.createTask(candidate, requesterId, mode, device);
             analysisRepository.updateCtStatus(candidate.ctImageId(), AnalysisStatuses.CT_QUEUED);
             createdTasks.add(task);
         }
@@ -103,7 +103,7 @@ public class AnalysisService {
         }
 
         triggerWorker();
-        return board(request.requesterId());
+        return board(requesterId);
     }
 
     private List<AnalysisTaskResponse> taskResponses(Long doctorId) {

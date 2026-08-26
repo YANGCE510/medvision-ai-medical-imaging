@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -7,7 +8,7 @@ from typing import Any
 import torch
 
 
-SYSTEM_TRT_SITE_PACKAGES = Path("/usr/lib/python3.8/dist-packages")
+SYSTEM_TRT_SITE_PACKAGES = os.environ.get("TENSORRT_SITE_PACKAGES", "").strip()
 
 
 def import_tensorrt() -> Any:
@@ -16,16 +17,17 @@ def import_tensorrt() -> Any:
 
         return trt
     except ModuleNotFoundError:
-        if SYSTEM_TRT_SITE_PACKAGES.exists() and str(SYSTEM_TRT_SITE_PACKAGES) not in sys.path:
-            sys.path.append(str(SYSTEM_TRT_SITE_PACKAGES))
+        configured_path = Path(SYSTEM_TRT_SITE_PACKAGES).expanduser() if SYSTEM_TRT_SITE_PACKAGES else None
+        if configured_path and configured_path.exists() and str(configured_path) not in sys.path:
+            sys.path.append(str(configured_path))
         try:
             import tensorrt as trt  # type: ignore
 
             return trt
         except ModuleNotFoundError as exc:
             raise RuntimeError(
-                "TensorRT Python package is not importable. On this Jetson it is usually available under "
-                "/usr/lib/python3.8/dist-packages; set PYTHONPATH or install TensorRT bindings in ppgl-gpu38."
+                "TensorRT Python package is not importable. Set TENSORRT_SITE_PACKAGES or PYTHONPATH, "
+                "or install TensorRT bindings in the active environment."
             ) from exc
 
 

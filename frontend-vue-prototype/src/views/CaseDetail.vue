@@ -8,16 +8,25 @@
 
       <div class="page-header-actions">
         <el-button @click="refresh">刷新</el-button>
-        <el-button v-if="canStart" type="warning" @click="startCurrentSegmentation">启动分割</el-button>
-        <el-button @click="go3D">查看三维重建</el-button>
+        <el-button v-if="canStartOrgan" @click="startOrganTask">启动全器官分割</el-button>
+        <el-button v-if="canStartPpgl" type="warning" @click="startPpglTask">启动 PPGL 分割</el-button>
+        <el-button @click="go3D">2D / 3D 联合阅片</el-button>
+        <el-button @click="goKnowledge">病例 RAG 问答</el-button>
         <el-button type="primary" @click="goReport">查看 AI 报告</el-button>
       </div>
     </div>
 
     <el-alert
-      v-if="status.status === 'failed'"
+      v-if="organStatus.status === 'failed'"
       class="status-alert"
-      :title="status.error || status.message || 'AI 分割失败'"
+      :title="organStatus.error || organStatus.message || '全器官分割失败'"
+      type="error"
+      show-icon
+    />
+    <el-alert
+      v-if="ppglStatus.status === 'failed'"
+      class="status-alert"
+      :title="ppglStatus.error || ppglStatus.message || 'PPGL 分割失败'"
       type="error"
       show-icon
     />
@@ -29,7 +38,7 @@
             <div class="section-header">
               <div>
                 <strong>二维关键切片</strong>
-                <p>自动选取肿瘤和关键结构所在层面</p>
+                <p>自动选取分割器官所在的代表性层面</p>
               </div>
             </div>
           </template>
@@ -53,8 +62,8 @@
           </div>
           <div v-else class="image-placeholder">
             <div>
-              <p>{{ status.message || '等待分割结果' }}</p>
-              <el-progress :percentage="status.progress || 0" />
+              <p>{{ organStatus.message || '等待全器官分割结果' }}</p>
+              <el-progress :percentage="organStatus.progress || 0" />
             </div>
           </div>
         </el-card>
@@ -78,22 +87,22 @@
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="进度">
-              {{ status.progress || 0 }}%
+              {{ organStatus.progress || 0 }}%
             </el-descriptions-item>
-            <el-descriptions-item label="肿瘤体积">
-              {{ formatNumber(summary.tumor_volume_ml) }} ml
+            <el-descriptions-item label="分割模型">
+              TotalSegmentator
             </el-descriptions-item>
-            <el-descriptions-item label="最大径">
-              {{ formatNumber(maxDiameter) }} mm
+            <el-descriptions-item label="分割任务">
+              {{ summary.task || 'total' }}
             </el-descriptions-item>
-            <el-descriptions-item label="中心点">
-              {{ centroidText }}
+            <el-descriptions-item label="有效器官数">
+              {{ summary.organ_count ?? '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="距腹主动脉">
-              {{ formatNumber(aortaDistance) }} mm
+            <el-descriptions-item label="最大结构">
+              {{ largestOrgan.name }}
             </el-descriptions-item>
-            <el-descriptions-item label="左右侧">
-              {{ summary.tumor_side_by_nearest_kidney || '-' }}
+            <el-descriptions-item label="最大结构体积">
+              {{ formatNumber(largestOrgan.volumeMl) }} ml
             </el-descriptions-item>
             <el-descriptions-item label="分割标签数">
               {{ result?.segmentation?.label_count || '-' }}
@@ -101,13 +110,41 @@
           </el-descriptions>
 
           <div class="actions">
-            <el-button v-if="status.status === 'completed'" type="primary" @click="downloadMask">
+            <el-button v-if="organStatus.status === 'completed'" type="primary" @click="downloadMask">
               下载 mask.nii.gz
             </el-button>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <div class="section-header">
+          <div>
+            <strong>PPGL 肿瘤分割</strong>
+            <p>ProgressPatchV5 独立推理结果</p>
+          </div>
+        </div>
+      </template>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="任务状态">
+          <el-tag :type="ppglStatusTagType">{{ ppglStatusText }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="进度">{{ ppglStatus.progress || 0 }}%</el-descriptions-item>
+        <el-descriptions-item label="模型">{{ ppglResult?.model?.name || 'ProgressPatchV5' }}</el-descriptions-item>
+        <el-descriptions-item label="检出肿瘤">{{ tumorDetectedText }}</el-descriptions-item>
+        <el-descriptions-item label="肿瘤体积">{{ formatNumber(ppglMetrics.apr_tumor_volume_ml) }} ml</el-descriptions-item>
+        <el-descriptions-item label="最大径">{{ formatNumber(ppglMetrics.max_diameter_mm) }} mm</el-descriptions-item>
+        <el-descriptions-item label="病灶数">{{ ppglMetrics.tumor_component_count ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="侧别">{{ sideText }}</el-descriptions-item>
+      </el-descriptions>
+      <div class="actions">
+        <el-button v-if="ppglStatus.status === 'completed'" type="warning" @click="downloadPpglMask">
+          下载 PPGL mask.nii.gz
+        </el-button>
+      </div>
+    </el-card>
 
     <el-card class="section-card" shadow="never">
       <template #header>
@@ -151,12 +188,15 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   getCaseResult,
   getCaseStatus,
+  getPpglMaskUrl,
+  getPpglResult,
   getSliceGallery,
   getSliceImageUrl,
-  JETSON_TRT_SEGMENTATION_PARAMS,
+  TOTALSEGMENTATOR_PARAMS,
   getMaskUrl,
   getOverlayUrl,
-  startSegmentation
+  startOrganSegmentation,
+  startPpglSegmentation
 } from '../api/caseApi'
 
 const route = useRoute()
@@ -165,11 +205,15 @@ const router = useRouter()
 const caseId = route.params.caseId
 const status = ref({ status: 'loading', message: '正在加载病例状态', progress: 0 })
 const result = ref(null)
+const ppglResult = ref(null)
 const sliceGallery = ref([])
 const overlayVersion = ref(Date.now())
 let pollTimer = null
 
 const summary = computed(() => result.value?.summary || {})
+const organStatus = computed(() => status.value.organ || status.value)
+const ppglStatus = computed(() => status.value.ppgl || { status: 'uploaded', progress: 0 })
+const ppglMetrics = computed(() => ppglResult.value?.metrics || {})
 const statusTagType = computed(() => {
   const map = {
     uploaded: 'info',
@@ -179,7 +223,7 @@ const statusTagType = computed(() => {
     failed: 'danger',
     loading: 'info'
   }
-  return map[status.value.status] || 'info'
+  return map[organStatus.value.status] || 'info'
 })
 const statusText = computed(() => {
   const map = {
@@ -190,7 +234,15 @@ const statusText = computed(() => {
     failed: '失败',
     loading: '加载中'
   }
-  return map[status.value.status] || status.value.status
+  return map[organStatus.value.status] || organStatus.value.status
+})
+const ppglStatusTagType = computed(() => {
+  const map = { uploaded: 'info', queued: 'warning', running: 'warning', completed: 'success', failed: 'danger' }
+  return map[ppglStatus.value.status] || 'info'
+})
+const ppglStatusText = computed(() => {
+  const map = { uploaded: '未启动', queued: '排队中', running: '分割中', completed: '已完成', failed: '失败' }
+  return map[ppglStatus.value.status] || ppglStatus.value.status
 })
 const activeStep = computed(() => {
   const map = {
@@ -200,33 +252,38 @@ const activeStep = computed(() => {
     failed: 2,
     completed: 5
   }
-  return map[status.value.status] || 1
+  return map[organStatus.value.status] || 1
 })
-const canStart = computed(() => ['uploaded', 'queued', 'failed'].includes(status.value.status))
+const canStartOrgan = computed(() => ['uploaded', 'failed'].includes(organStatus.value.status))
+const canStartPpgl = computed(() => ['uploaded', 'failed'].includes(ppglStatus.value.status))
 const overlaySrc = computed(() => {
-  if (status.value.status !== 'completed') return ''
+  if (organStatus.value.status !== 'completed') return ''
   return `${getOverlayUrl(caseId)}?t=${overlayVersion.value}`
 })
 const sliceCards = computed(() => {
-  if (status.value.status !== 'completed') return []
+  if (organStatus.value.status !== 'completed') return []
   return sliceGallery.value.map(item => ({
     ...item,
     url: `${getSliceImageUrl(caseId, item.filename)}?t=${overlayVersion.value}`
   }))
 })
-const maxDiameter = computed(() => {
-  const bbox = summary.value.largest_component_bbox_size_mm
-  return Array.isArray(bbox) && bbox.length ? Math.max(...bbox) : null
-})
-const aortaDistance = computed(() => summary.value.anchor_distances_mm?.aorta)
-const centroidText = computed(() => {
-  const centroid = summary.value.largest_component_centroid_mm
-  if (!Array.isArray(centroid)) return '-'
-  return `[${centroid.map(v => formatNumber(v)).join(', ')}]`
+const largestOrgan = computed(() => {
+  const entries = Object.entries(summary.value.organs || {})
+  if (!entries.length) return { name: '-', volumeMl: null }
+  const [name, values] = entries.sort((left, right) => Number(right[1]?.volume_ml || 0) - Number(left[1]?.volume_ml || 0))[0]
+  return { name: name.replaceAll('_', ' '), volumeMl: values?.volume_ml }
 })
 const labelNames = computed(() => {
   const labelMap = result.value?.segmentation?.label_map || {}
   return Object.values(labelMap).filter(name => name !== 'background')
+})
+const tumorDetectedText = computed(() => {
+  if (ppglStatus.value.status !== 'completed') return '-'
+  return ppglResult.value?.segmentation?.tumor_detected ? '是' : '否'
+})
+const sideText = computed(() => {
+  const map = { left: '左侧', right: '右侧' }
+  return map[ppglMetrics.value.tumor_side_by_nearest_kidney] || '-'
 })
 
 function formatNumber(value) {
@@ -258,17 +315,29 @@ function ensurePolling() {
 async function loadStatus() {
   try {
     status.value = await getCaseStatus(caseId)
-    if (status.value.status === 'completed') {
-      clearPoll()
+    if (organStatus.value.status === 'completed') {
       await loadResult()
-    } else if (status.value.status === 'queued' || status.value.status === 'running') {
+    }
+    if (ppglStatus.value.status === 'completed') {
+      await loadPpglResult()
+    }
+    const active = [organStatus.value.status, ppglStatus.value.status].some(value => value === 'queued' || value === 'running')
+    if (active) {
       ensurePolling()
-    } else if (status.value.status === 'failed') {
+    } else {
       clearPoll()
     }
   } catch (err) {
     clearPoll()
     ElMessage.error(err?.response?.data?.detail || '病例状态加载失败')
+  }
+}
+
+async function loadPpglResult() {
+  try {
+    ppglResult.value = await getPpglResult(caseId)
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || 'PPGL 分割结果加载失败')
   }
 }
 
@@ -295,19 +364,34 @@ async function refresh() {
   await loadStatus()
 }
 
-async function startCurrentSegmentation() {
+async function startOrganTask() {
   try {
-    await startSegmentation(caseId, JETSON_TRT_SEGMENTATION_PARAMS)
-    ElMessage.success('已启动智能分割任务')
+    await startOrganSegmentation(caseId, TOTALSEGMENTATOR_PARAMS)
+    ElMessage.success('已启动全器官分割任务')
     await loadStatus()
     ensurePolling()
   } catch (err) {
-    ElMessage.error(err?.response?.data?.detail || '启动分割失败')
+    ElMessage.error(err?.response?.data?.detail || '启动全器官分割失败')
+  }
+}
+
+async function startPpglTask() {
+  try {
+    await startPpglSegmentation(caseId, { device: 'cuda:0' })
+    ElMessage.success('已启动 PPGL 肿瘤分割任务')
+    await loadStatus()
+    ensurePolling()
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '启动 PPGL 分割失败')
   }
 }
 
 function downloadMask() {
   window.open(getMaskUrl(caseId), '_blank')
+}
+
+function downloadPpglMask() {
+  window.open(getPpglMaskUrl(caseId), '_blank')
 }
 
 function go3D() {
@@ -316,6 +400,10 @@ function go3D() {
 
 function goReport() {
   router.push(`/cases/${caseId}/report`)
+}
+
+function goKnowledge() {
+  router.push({ path: '/knowledge', query: { caseId } })
 }
 
 onMounted(loadStatus)

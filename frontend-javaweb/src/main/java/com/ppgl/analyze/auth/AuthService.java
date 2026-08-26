@@ -26,7 +26,10 @@ public class AuthService {
         String displayName = blankToDefault(request.displayName(), username);
         String email = normalizeNullable(request.email());
         String phone = normalize(request.phone());
-        UserRole role = UserRole.from(request.role());
+        UserRole role = UserRole.PATIENT;
+        if (request.role() != null && !request.role().isBlank() && UserRole.from(request.role()) != UserRole.PATIENT) {
+            throw new AuthException("公开注册仅支持患者账号，医生和管理员由系统管理员创建");
+        }
         String patientIdCard = normalizePatientIdCard(request.patientIdCard(), role);
 
         validateUsername(username);
@@ -62,6 +65,15 @@ public class AuthService {
 
         if (!user.enabled() || !passwordEncoder.matches(password, user.passwordHash())) {
             throw new AuthException("账号或密码错误");
+        }
+        return UserResponse.from(user);
+    }
+
+    public UserResponse findEnabledUser(Long userId) {
+        UserAccount user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException("用户不存在"));
+        if (!user.enabled()) {
+            throw new AuthException("账号已禁用");
         }
         return UserResponse.from(user);
     }

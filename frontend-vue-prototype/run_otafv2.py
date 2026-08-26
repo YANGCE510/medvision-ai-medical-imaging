@@ -14,13 +14,14 @@ from typing import Any
 
 import nibabel as nib
 import numpy as np
+import vtk
 from PIL import Image
-from scipy.ndimage import gaussian_filter
-from skimage import measure
+from vtk.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent
-CODE_ALL_DIR = Path("/path/to/PPGL/Code_ALL")
+PROJECT_ROOT = FRONTEND_DIR.parent
+CODE_ALL_DIR = PROJECT_ROOT / "ai-backend"
 CODE_ALL_PIPELINE = CODE_ALL_DIR / "run_case_pipeline.py"
 
 
@@ -241,12 +242,12 @@ def create_slice_gallery(image_path: Path, mask_path: Path, label_map_path: Path
         z_high = min(mask.shape[2] - 1, z_center + 12)
 
     candidates: list[dict[str, Any]] = []
-    add_unique_slice(candidates, {"plane": "axial", "index": z_max, "title": "轴位：肿瘤最大截面"})
-    add_unique_slice(candidates, {"plane": "axial", "index": z_center, "title": "轴位：肿瘤中心层面"})
-    add_unique_slice(candidates, {"plane": "axial", "index": z_min, "title": "轴位：肿瘤上缘"})
-    add_unique_slice(candidates, {"plane": "axial", "index": z_high, "title": "轴位：肿瘤下缘"})
-    add_unique_slice(candidates, {"plane": "coronal", "index": y_center, "title": "冠状位：肿瘤与周围器官"})
-    add_unique_slice(candidates, {"plane": "sagittal", "index": x_center, "title": "矢状位：肿瘤与血管/肾上腺"})
+    add_unique_slice(candidates, {"plane": "axial", "index": z_max, "title": "轴位：分割结构最大截面"})
+    add_unique_slice(candidates, {"plane": "axial", "index": z_center, "title": "轴位：分割结构中心层面"})
+    add_unique_slice(candidates, {"plane": "axial", "index": z_min, "title": "轴位：分割范围上缘"})
+    add_unique_slice(candidates, {"plane": "axial", "index": z_high, "title": "轴位：分割范围下缘"})
+    add_unique_slice(candidates, {"plane": "coronal", "index": y_center, "title": "冠状位：全器官分割"})
+    add_unique_slice(candidates, {"plane": "sagittal", "index": x_center, "title": "矢状位：全器官分割"})
 
     slice_dir = output_dir / "slices"
     slice_dir.mkdir(parents=True, exist_ok=True)
@@ -264,7 +265,6 @@ def create_slice_gallery(image_path: Path, mask_path: Path, label_map_path: Path
                 "title": item["title"],
                 "plane": plane,
                 "index": index,
-                "tumor_pixels": int((mask_slice == tumor_label).sum()) if tumor_label is not None else 0,
                 "mask_pixels": int((mask_slice > 0).sum()),
             }
         )
@@ -324,63 +324,77 @@ def color_for_label(name: str, index: int) -> list[float]:
     return palette.get(organ, [0.35 + (index % 5) * 0.09, 0.62, 0.95 - (index % 4) * 0.08, 0.54])
 
 
-def mesh_stride(label_name: str, voxel_count: int) -> int:
-    return 1
+def create_vtk_snap_surface(
+    label_mask: np.ndarray,
+    spacing: np.ndarray,
+    center: np.ndarray,
+    max_faces: int = 80_000,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    points = np.argwhere(label_mask)
+    margin = 2
+    lower = np.maximum(points.min(axis=0) - margin, 0).astype(np.int32)
+    upper = np.minimum(points.max(axis=0) + margin + 1, np.asarray(label_mask.shape)).astype(np.int32)
+    slices = tuple(slice(int(lower[axis]), int(upper[axis])) for axis in range(3))
+    cropped = np.ascontiguousarray(label_mask[slices], dtype=np.uint8)
 
-
-def mesh_smoothing_params(label_name: str, voxel_count: int) -> tuple[float, int, float]:
-    if label_name.startswith("tumor:"):
-        return 0.08, 2, 0.14
-    organ = label_name.split(":", 1)[-1]
-    if organ.startswith("adrenal_gland"):
-        return 0.18, 3, 0.16
-    if organ in {"aorta", "inferior_vena_cava", "portal_vein_and_splenic_vein"}:
-        return 0.22, 4, 0.16
-    if organ in {"kidney_left", "kidney_right", "liver", "spleen", "pancreas"}:
-        return 0.24, 4, 0.16
-    if voxel_count > 120_000:
-        return 0.30, 5, 0.16
-    return 0.20, 4, 0.16
-
-
-def smooth_vertices(vertices: np.ndarray, faces: np.ndarray, iterations: int, factor: float) -> np.ndarray:
-    if iterations <= 0 or factor <= 0 or len(vertices) == 0 or len(faces) == 0:
-        return vertices.astype(np.float32, copy=False)
-
-    faces_i = np.asarray(faces, dtype=np.int64)
-    edges = np.concatenate(
-        [
-            faces_i[:, [0, 1]],
-            faces_i[:, [1, 2]],
-            faces_i[:, [2, 0]],
-        ],
-        axis=0,
+    image = vtk.vtkImageData()
+    image.SetDimensions(*(int(value) for value in cropped.shape))
+    image.SetSpacing(*(float(value) for value in spacing))
+    image.SetOrigin(*(float(value) for value in lower * spacing))
+    vtk_scalars = numpy_to_vtk(
+        cropped.ravel(order="F"),
+        deep=True,
+        array_type=vtk.VTK_UNSIGNED_CHAR,
     )
-    src = np.concatenate([edges[:, 0], edges[:, 1]])
-    dst = np.concatenate([edges[:, 1], edges[:, 0]])
+    image.GetPointData().SetScalars(vtk_scalars)
 
-    smoothed = vertices.astype(np.float32, copy=True)
-    for _ in range(iterations):
-        sums = np.zeros_like(smoothed)
-        counts = np.zeros((smoothed.shape[0], 1), dtype=np.float32)
-        np.add.at(sums, src, smoothed[dst])
-        np.add.at(counts, src, 1.0)
-        avg = np.divide(sums, counts, out=smoothed.copy(), where=counts > 0)
-        smoothed = smoothed * (1.0 - factor) + avg * factor
-    return smoothed.astype(np.float32, copy=False)
+    surface = vtk.vtkDiscreteFlyingEdges3D()
+    surface.SetInputData(image)
+    surface.SetValue(0, 1)
+    surface.ComputeNormalsOff()
+    surface.ComputeGradientsOff()
 
+    smooth = vtk.vtkWindowedSincPolyDataFilter()
+    smooth.SetInputConnection(surface.GetOutputPort())
+    smooth.SetNumberOfIterations(30)
+    smooth.SetPassBand(0.08)
+    smooth.FeatureEdgeSmoothingOff()
+    smooth.BoundarySmoothingOn()
+    smooth.NonManifoldSmoothingOn()
+    smooth.NormalizeCoordinatesOn()
+    smooth.Update()
+    source_face_count = int(smooth.GetOutput().GetNumberOfPolys())
+    if source_face_count < 1:
+        raise RuntimeError("VTK produced an empty surface")
 
-def compute_vertex_normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
-    normals = np.zeros_like(vertices, dtype=np.float32)
-    triangles = vertices[faces]
-    face_normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
-    lengths = np.linalg.norm(face_normals, axis=1, keepdims=True)
-    face_normals = np.divide(face_normals, lengths, out=np.zeros_like(face_normals), where=lengths > 1e-8)
-    for column in range(3):
-        np.add.at(normals, faces[:, column], face_normals)
-    normal_lengths = np.linalg.norm(normals, axis=1, keepdims=True)
-    normals = np.divide(normals, normal_lengths, out=np.zeros_like(normals), where=normal_lengths > 1e-8)
-    return normals.astype(np.float32, copy=False)
+    geometry_port = smooth.GetOutputPort()
+    if source_face_count > max_faces:
+        decimate = vtk.vtkQuadricDecimation()
+        decimate.SetInputConnection(geometry_port)
+        decimate.SetTargetReduction(1.0 - (max_faces / source_face_count))
+        decimate.VolumePreservationOn()
+        decimate.Update()
+        geometry_port = decimate.GetOutputPort()
+
+    normals_filter = vtk.vtkPolyDataNormals()
+    normals_filter.SetInputConnection(geometry_port)
+    normals_filter.ComputePointNormalsOn()
+    normals_filter.ComputeCellNormalsOff()
+    normals_filter.SplittingOff()
+    normals_filter.ConsistencyOn()
+    normals_filter.AutoOrientNormalsOn()
+    normals_filter.Update()
+    polydata = normals_filter.GetOutput()
+
+    vertices = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float32, copy=False)
+    cell_data = vtk_to_numpy(polydata.GetPolys().GetData())
+    cells = cell_data.reshape(-1, 4)
+    if not np.all(cells[:, 0] == 3):
+        raise RuntimeError("VTK surface contains non-triangle cells")
+    faces = cells[:, 1:].astype(np.uint32, copy=False)
+    normals = vtk_to_numpy(polydata.GetPointData().GetNormals()).astype(np.float32, copy=False)
+    vertices = vertices - center.reshape(1, 3)
+    return vertices, faces, normals, source_face_count
 
 
 def make_binary_glb(meshes: list[dict[str, Any]], output_path: Path) -> None:
@@ -496,6 +510,45 @@ def make_binary_glb(meshes: list[dict[str, Any]], output_path: Path) -> None:
         f.write(bin_bytes)
 
 
+def meshopt_compress_glb(source_path: Path, output_path: Path, simplify_ratio: float = 1.0) -> None:
+    gltfpack = FRONTEND_DIR / "node_modules" / ".bin" / "gltfpack"
+    if not gltfpack.is_file():
+        raise RuntimeError(f"gltfpack not found: {gltfpack}. Run npm install in {FRONTEND_DIR}.")
+    command = [
+        str(gltfpack),
+        "-i", str(source_path),
+        "-o", str(output_path),
+        "-c",
+        "-kn",
+        "-km",
+        "-vp", "16",
+        "-vn", "12",
+    ]
+    if simplify_ratio < 0.999:
+        command.extend(["-si", str(simplify_ratio), "-se", "0.01"])
+    completed = subprocess.run(command, text=True, capture_output=True)
+    if completed.returncode != 0:
+        raise RuntimeError(f"gltfpack failed for {source_path.name}: {completed.stderr.strip()}")
+
+
+def visible_by_default(label_name: str) -> bool:
+    if label_name.startswith("tumor:"):
+        return True
+    organ = label_name.split(":", 1)[-1]
+    return organ in {
+        "adrenal_gland_left",
+        "adrenal_gland_right",
+        "aorta",
+        "inferior_vena_cava",
+        "portal_vein_and_splenic_vein",
+        "kidney_left",
+        "kidney_right",
+        "liver",
+        "spleen",
+        "pancreas",
+    }
+
+
 def create_mesh_outputs(mask_path: Path, label_map_path: Path, output_dir: Path) -> dict[str, Any]:
     mask_img = nib.load(str(mask_path))
     mask = np.rint(np.asarray(mask_img.dataobj)).astype(np.uint16, copy=False)
@@ -506,6 +559,8 @@ def create_mesh_outputs(mask_path: Path, label_map_path: Path, output_dir: Path)
     mesh_dir = output_dir / "meshes"
     glb_path = mesh_dir / "scene.glb"
     manifest_path = mesh_dir / "mesh_manifest.json"
+    organ_mesh_dir = mesh_dir / "organs"
+    organ_mesh_dir.mkdir(parents=True, exist_ok=True)
 
     meshes: list[dict[str, Any]] = []
     manifest_meshes: list[dict[str, Any]] = []
@@ -516,44 +571,31 @@ def create_mesh_outputs(mask_path: Path, label_map_path: Path, output_dir: Path)
         voxel_count = int(label_mask.sum())
         if voxel_count < 8:
             continue
-        stride = mesh_stride(name, voxel_count)
-        sampled = label_mask[::stride, ::stride, ::stride]
-        if sampled.sum() < 8:
-            sampled = label_mask
-            stride = 1
-        gaussian_sigma, smoothing_iterations, smoothing_factor = mesh_smoothing_params(name, voxel_count)
-        step_spacing = np.asarray([float(x * stride) for x in spacing], dtype=np.float32)
-        volume = sampled.astype(np.float32)
-        if gaussian_sigma > 0:
-            volume = gaussian_filter(volume, sigma=gaussian_sigma)
-        volume = np.pad(volume, 1, mode="constant", constant_values=0.0)
         try:
-            vertices, faces, normals, _values = measure.marching_cubes(
-                volume,
-                level=0.5,
-                spacing=tuple(float(x) for x in step_spacing),
-                allow_degenerate=False,
+            vertices, faces, normals, source_face_count = create_vtk_snap_surface(
+                label_mask,
+                spacing,
+                center,
             )
-        except Exception:
+        except (RuntimeError, ValueError):
             continue
         if len(vertices) == 0 or len(faces) == 0:
             continue
-        vertices = vertices.astype(np.float32, copy=False) - step_spacing.reshape(1, 3)
-        faces = faces.astype(np.uint32, copy=False)
-        vertices = smooth_vertices(vertices, faces, smoothing_iterations, smoothing_factor)
-        vertices = vertices - center.reshape(1, 3)
-        normals = compute_vertex_normals(vertices, faces)
         color = color_for_label(name, len(meshes))
-        meshes.append(
-            {
-                "label_id": label_id,
-                "name": name,
-                "vertices": vertices,
-                "faces": faces,
-                "normals": normals,
-                "color": color,
-            }
-        )
+        mesh_payload = {
+            "label_id": label_id,
+            "name": name,
+            "vertices": vertices,
+            "faces": faces,
+            "normals": normals,
+            "color": color,
+        }
+        meshes.append(mesh_payload)
+        high_path = organ_mesh_dir / f"{label_id}.glb"
+        high_raw_path = organ_mesh_dir / f"{label_id}.raw.glb"
+        make_binary_glb([mesh_payload], high_raw_path)
+        meshopt_compress_glb(high_raw_path, high_path)
+        high_raw_path.unlink(missing_ok=True)
         manifest_meshes.append(
             {
                 "label_id": label_id,
@@ -561,20 +603,36 @@ def create_mesh_outputs(mask_path: Path, label_map_path: Path, output_dir: Path)
                 "vertex_count": int(vertices.shape[0]),
                 "face_count": int(faces.shape[0]),
                 "voxel_count": voxel_count,
-                "stride": stride,
-                "gaussian_sigma": gaussian_sigma,
-                "smoothing_iterations": smoothing_iterations,
+                "source_face_count": source_face_count,
+                "surface_algorithm": "vtkDiscreteFlyingEdges3D",
+                "smoothing_filter": "vtkWindowedSincPolyDataFilter",
+                "smoothing_iterations": 30,
+                "smoothing_pass_band": 0.08,
                 "color": color,
-                "visible_by_default": True,
+                "visible_by_default": visible_by_default(name),
+                "high_available": True,
+                "high_file_size": high_path.stat().st_size,
+                "high_vertex_count": int(vertices.shape[0]),
+                "high_face_count": int(faces.shape[0]),
             }
         )
 
     if not meshes:
         raise RuntimeError("No meshes could be generated from final mask.")
-    make_binary_glb(meshes, glb_path)
+    raw_glb_path = mesh_dir / "scene.raw.glb"
+    make_binary_glb(meshes, raw_glb_path)
+    meshopt_compress_glb(raw_glb_path, glb_path, simplify_ratio=0.35)
+    raw_glb_path.unlink(missing_ok=True)
     manifest = {
-        "mesh_schema_version": "ppgl_mesh_v1",
-        "glb_path": str(glb_path),
+        "mesh_schema_version": "ppgl_mesh_v3_vtk_snap",
+        "overview_file_size": glb_path.stat().st_size,
+        "overview_simplify_ratio": 0.35,
+        "surface_pipeline": [
+            "vtkDiscreteFlyingEdges3D",
+            "vtkWindowedSincPolyDataFilter",
+            "vtkQuadricDecimation",
+            "vtkPolyDataNormals",
+        ],
         "mesh_count": len(meshes),
         "meshes": manifest_meshes,
     }
@@ -586,7 +644,7 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
     if not CODE_ALL_PIPELINE.exists():
         raise FileNotFoundError(f"Code_ALL pipeline not found: {CODE_ALL_PIPELINE}")
 
-    device, totalseg_device = resolve_device(args.device)
+    _device, totalseg_device = resolve_device(args.device)
     run_root = output_dir
     run_name = "code_all"
     cmd = [
@@ -602,33 +660,16 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
         run_name,
         "--mode",
         str(args.mode),
-        "--device",
-        device,
         "--totalseg-device",
         totalseg_device,
-        "--gcp-backend",
-        str(args.gcp_backend),
-        "--analysis-fast",
     ]
 
     if args.force:
         cmd.append("--force")
-    if args.gcp_amp:
-        cmd.append("--gcp-amp")
-    else:
-        cmd.append("--no-gcp-amp")
-    if args.allow_tf32:
-        cmd.append("--allow-tf32")
-    else:
-        cmd.append("--no-allow-tf32")
-    if str(args.gcp_engine).strip():
-        cmd.extend(["--gcp-engine", str(args.gcp_engine)])
     if args.totalseg_fast:
         cmd.append("--totalseg-fast")
     if args.totalseg_fastest:
         cmd.append("--totalseg-fastest")
-    if str(args.reuse_gcp_path).strip():
-        cmd.extend(["--reuse-gcp-path", str(args.reuse_gcp_path)])
     if str(args.totalseg_existing_dir).strip():
         cmd.extend(["--totalseg-existing-dir", str(args.totalseg_existing_dir)])
 
@@ -679,10 +720,6 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
     timing = load_json(timing_path) if timing_path.exists() else {}
 
     labels = label_payload.get("label_map", {})
-    tumor_volume_ml = metrics.get("apr_tumor_volume_ml")
-    components = metrics.get("components", [])
-    largest_component = components[0] if components else {}
-
     result = {
         "case_id": case_id,
         "status": "completed",
@@ -705,23 +742,17 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
         "segmentation": {
             "label_count": len(labels),
             "label_map": labels,
-            "tumor_priority": bool(label_payload.get("tumor_priority", True)),
+            "tumor_priority": False,
             "mesh_count": mesh_outputs["mesh_count"],
         },
         "clinical_metrics": metrics,
         "summary": {
-            "tumor_volume_ml": tumor_volume_ml,
-            "tumor_component_count": metrics.get("tumor_component_count"),
-            "tumor_side_by_nearest_kidney": metrics.get("tumor_side_by_nearest_kidney"),
-            "risk_level": metrics.get("risk_assessment", {}).get("overall_level"),
-            "risk_reasons": metrics.get("risk_assessment", {}).get("reasons", []),
-            "surgical_complexity_level": metrics.get("risk_assessment", {}).get("surgical_complexity_level"),
-            "segmentation_confidence": metrics.get("segmentation_quality", {}).get("confidence"),
-            "anchor_distances_mm": metrics.get("anchor_distances_mm", {}),
-            "largest_component_bbox_size_mm": largest_component.get("bbox_size_mm"),
-            "largest_component_centroid_mm": largest_component.get("centroid_mm_from_origin"),
+            "pipeline": metrics.get("pipeline"),
+            "task": metrics.get("task"),
+            "organ_count": metrics.get("organ_count"),
+            "voxel_volume_mm3": metrics.get("voxel_volume_mm3"),
+            "organs": metrics.get("organs", {}),
         },
-        "risk_assessment": metrics.get("risk_assessment", {}),
         "timing": timing,
     }
     write_json(result_path, result)
@@ -729,21 +760,14 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Frontend entrypoint for OTAFV2/PPGL inference.")
+    parser = argparse.ArgumentParser(description="Frontend entrypoint for TotalSegmentator inference.")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--case-id", default="")
-    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="abdomen")
+    parser.add_argument("--mode", choices=["jetson_fast", "abdomen", "full_total"], default="full_total")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--totalseg-existing-dir", default="")
-    parser.add_argument("--reuse-gcp-path", default="")
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--gcp-backend", choices=["torch", "trt"], default="torch")
-    parser.add_argument("--gcp-engine", default="")
-    parser.add_argument("--gcp-amp", dest="gcp_amp", action="store_true", default=True)
-    parser.add_argument("--no-gcp-amp", dest="gcp_amp", action="store_false")
-    parser.add_argument("--allow-tf32", dest="allow_tf32", action="store_true", default=True)
-    parser.add_argument("--no-allow-tf32", dest="allow_tf32", action="store_false")
     parser.add_argument("--totalseg-fast", action="store_true")
     parser.add_argument("--totalseg-fastest", action="store_true")
     return parser
@@ -756,9 +780,6 @@ def main() -> None:
     args.output = args.output.expanduser().resolve()
     if str(args.totalseg_existing_dir).strip():
         args.totalseg_existing_dir = Path(str(args.totalseg_existing_dir)).expanduser().resolve()
-    if str(args.reuse_gcp_path).strip():
-        args.reuse_gcp_path = Path(str(args.reuse_gcp_path)).expanduser().resolve()
-
     if not args.input.exists():
         raise FileNotFoundError(f"Input file not found: {args.input}")
 

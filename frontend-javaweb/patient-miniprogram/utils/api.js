@@ -2,6 +2,7 @@ const { buildPatientReport } = require("./report-format");
 
 const API_BASE_URL = "http://127.0.0.1:8080";
 const USER_STORAGE_KEY = "ppglPatientUser";
+const TOKEN_STORAGE_KEY = "ppglPatientToken";
 const SEEN_FOLLOW_UP_KEY = "ppglSeenFollowUps";
 const SEEN_FEEDBACK_REPLY_KEY = "ppglSeenFeedbackReplies";
 const FOLLOW_UP_TAB_INDEX = 1;
@@ -13,9 +14,12 @@ function request(path, options = {}) {
       url: `${API_BASE_URL}${path}`,
       method: options.method || "GET",
       data: options.data || {},
-      header: {
-        "content-type": "application/json"
-      },
+      header: Object.assign(
+        { "content-type": "application/json" },
+        wx.getStorageSync(TOKEN_STORAGE_KEY)
+          ? { Authorization: `Bearer ${wx.getStorageSync(TOKEN_STORAGE_KEY)}` }
+          : {}
+      ),
       success(res) {
         const body = res.data || {};
         if (res.statusCode >= 200 && res.statusCode < 300 && body.success !== false) {
@@ -41,6 +45,7 @@ function getCurrentUser() {
 
 function clearCurrentUser() {
   wx.removeStorageSync(USER_STORAGE_KEY);
+  wx.removeStorageSync(TOKEN_STORAGE_KEY);
   wx.removeTabBarBadge({ index: FOLLOW_UP_TAB_INDEX });
   wx.removeTabBarBadge({ index: FEEDBACK_TAB_INDEX });
 }
@@ -132,8 +137,10 @@ async function login(account, password) {
       password
     }
   });
-  saveCurrentUser(result.data);
-  return result.data;
+  const session = result.data || {};
+  saveCurrentUser(session.user);
+  wx.setStorageSync(TOKEN_STORAGE_KEY, session.accessToken || "");
+  return session.user;
 }
 
 async function register(form) {
@@ -148,37 +155,39 @@ async function register(form) {
       role: "PATIENT"
     }
   });
-  saveCurrentUser(result.data);
-  return result.data;
+  const session = result.data || {};
+  saveCurrentUser(session.user);
+  wx.setStorageSync(TOKEN_STORAGE_KEY, session.accessToken || "");
+  return session.user;
 }
 
 async function getReports() {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/reports?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request("/api/patient/reports");
   return (result.data || []).map(buildPatientReport);
 }
 
 async function getReport(taskId) {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}`);
   return buildPatientReport(result.data || {});
 }
 
 async function getFollowUps(taskId) {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/care/reports/${encodeURIComponent(taskId)}/follow-ups?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request(`/api/patient/care/reports/${encodeURIComponent(taskId)}/follow-ups`);
   return result.data || [];
 }
 
 async function getAllFollowUps() {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/care/follow-ups?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request("/api/patient/care/follow-ups");
   return result.data || [];
 }
 
 async function submitFollowUp(planId, form) {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/care/follow-ups/${encodeURIComponent(planId)}/submit?patientUserId=${encodeURIComponent(patientUserId)}`, {
+  requirePatientUserId();
+  const result = await request(`/api/patient/care/follow-ups/${encodeURIComponent(planId)}/submit`, {
     method: "POST",
     data: {
       symptoms: form.symptoms || [],
@@ -193,8 +202,8 @@ async function submitFollowUp(planId, form) {
 }
 
 async function submitFeedback(taskId, question) {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/care/reports/${encodeURIComponent(taskId)}/feedbacks?patientUserId=${encodeURIComponent(patientUserId)}`, {
+  requirePatientUserId();
+  const result = await request(`/api/patient/care/reports/${encodeURIComponent(taskId)}/feedbacks`, {
     method: "POST",
     data: { question }
   });
@@ -202,19 +211,19 @@ async function submitFeedback(taskId, question) {
 }
 
 async function getFeedbacks() {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/care/feedbacks?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request("/api/patient/care/feedbacks");
   return result.data || [];
 }
 
 async function getChatHistory(taskId) {
-  const patientUserId = requirePatientUserId();
-  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}/chat?patientUserId=${encodeURIComponent(patientUserId)}`);
+  requirePatientUserId();
+  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}/chat`);
   return result.data || [];
 }
 
 async function sendChatMessage(taskId, message, history) {
-  const patientUserId = requirePatientUserId();
+  requirePatientUserId();
   const compactHistory = (history || [])
     .filter((item) => item && item.role && item.content)
     .map((item) => ({
@@ -222,7 +231,7 @@ async function sendChatMessage(taskId, message, history) {
       content: item.content
     }))
     .slice(-2);
-  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}/chat?patientUserId=${encodeURIComponent(patientUserId)}`, {
+  const result = await request(`/api/patient/reports/${encodeURIComponent(taskId)}/chat`, {
     method: "POST",
     data: {
       question: message,

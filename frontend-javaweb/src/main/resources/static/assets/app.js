@@ -37,7 +37,7 @@ createApp({
             email: "",
             phone: "",
             patientIdCard: "",
-            role: "DOCTOR",
+            role: "PATIENT",
             remember: true
         });
         const authMessage = reactive({
@@ -522,6 +522,17 @@ createApp({
             authMessage.text = mode === "login" ? "请输入账号和密码登录。" : "注册后会自动进入系统。";
         }
 
+        async function apiFetch(url, options = {}) {
+            const response = await fetch(url, {
+                ...options
+            });
+            if (response.status === 401) {
+                clearAuthState();
+                isAuthed.value = false;
+            }
+            return response;
+        }
+
         async function submitAuth() {
             isBusy.value = true;
             authMessage.type = "muted";
@@ -537,13 +548,14 @@ createApp({
                         email: authForm.email,
                         phone: authForm.phone,
                         patientIdCard: authForm.patientIdCard,
-                        role: authForm.role
+                        role: "PATIENT"
                     };
                 const result = await postJson(endpoint, payload);
                 if (!result.success) {
                     throw new Error(result.message || "操作失败");
                 }
-                Object.assign(currentUser, result.data);
+                const session = result.data || {};
+                Object.assign(currentUser, session.user || {});
                 isAuthed.value = true;
                 saveAuthState();
                 authMessage.type = "success";
@@ -558,7 +570,8 @@ createApp({
         }
 
         async function postJson(url, body) {
-            const response = await fetch(url, {
+            const isPublicAuth = url === "/api/auth/login" || url === "/api/auth/register";
+            const response = await (isPublicAuth ? fetch : apiFetch)(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body)
@@ -625,7 +638,7 @@ createApp({
         async function loadComputeNodeStatus() {
             computeNodeStatus.loading = true;
             try {
-                const response = await fetch("/api/analysis/node-status");
+                const response = await apiFetch("/api/analysis/node-status");
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "计算节点状态获取失败");
@@ -668,7 +681,7 @@ createApp({
             }
             ctListBusy.value = true;
             try {
-                const response = await fetch(`/api/ct-images?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch("/api/ct-images");
                 const result = await response.json();
                 if (!response.ok || !result.success) {
                     throw new Error(result.message || "影像列表加载失败");
@@ -697,7 +710,7 @@ createApp({
                 analysisBusy.value = true;
             }
             try {
-                const response = await fetch(`/api/analysis/board?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch("/api/analysis/board");
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "分析任务加载失败");
@@ -754,7 +767,6 @@ createApp({
             analysisMessage.text = "正在加入分析队列...";
             try {
                 const result = await postJson("/api/analysis/tasks", {
-                    requesterId: currentUser.id,
                     ctImageIds: selectedAnalysisIds.value,
                     mode: "abdomen",
                     device: "cuda"
@@ -829,7 +841,7 @@ createApp({
                 reportBusy.value = true;
             }
             try {
-                const response = await fetch(`/api/reports?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch("/api/reports");
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "报告列表加载失败");
@@ -854,7 +866,7 @@ createApp({
             reportMessage.type = "muted";
             reportMessage.text = "";
             try {
-                const response = await fetch(`/api/reports/${report.taskId}?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch(`/api/reports/${report.taskId}`);
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "报告详情加载失败");
@@ -938,7 +950,7 @@ createApp({
             reportMessage.type = "muted";
             reportMessage.text = "";
             try {
-                const response = await fetch(`/api/reports/${selectedReport.value.taskId}/review?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const response = await apiFetch(`/api/reports/${selectedReport.value.taskId}/review`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -994,7 +1006,7 @@ createApp({
             followUpMessage.type = "muted";
             followUpMessage.text = "";
             try {
-                const response = await fetch(`/api/care/follow-ups?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch("/api/care/follow-ups");
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "回访列表加载失败");
@@ -1045,7 +1057,7 @@ createApp({
             followUpMessage.type = "muted";
             followUpMessage.text = "正在保存回访计划...";
             try {
-                const result = await postJson(`/api/care/follow-ups?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const result = await postJson("/api/care/follow-ups", {
                     taskId: Number(followUpForm.taskId),
                     followUpDate: followUpForm.followUpDate,
                     reason,
@@ -1087,7 +1099,7 @@ createApp({
             }
             followUpBusy.value = true;
             try {
-                const result = await postJson(`/api/care/follow-ups/${encodeURIComponent(plan.id)}/status?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const result = await postJson(`/api/care/follow-ups/${encodeURIComponent(plan.id)}/status`, {
                     status
                 });
                 if (!result.success) {
@@ -1114,7 +1126,7 @@ createApp({
             feedbackMessage.type = "muted";
             feedbackMessage.text = "";
             try {
-                const response = await fetch(`/api/care/feedbacks?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch("/api/care/feedbacks");
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "反馈列表加载失败");
@@ -1156,7 +1168,7 @@ createApp({
             concernMessage.type = "muted";
             concernMessage.text = "正在分析患者担忧...";
             try {
-                const response = await fetch(`/api/reports/${encodeURIComponent(report.taskId)}/patient-concern-summary?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch(`/api/reports/${encodeURIComponent(report.taskId)}/patient-concern-summary`);
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "患者担忧分析失败");
@@ -1193,7 +1205,7 @@ createApp({
             feedbackMessage.type = "muted";
             feedbackMessage.text = "正在保存反馈处理结果...";
             try {
-                const result = await postJson(`/api/care/feedbacks/${encodeURIComponent(feedback.id)}/reply?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const result = await postJson(`/api/care/feedbacks/${encodeURIComponent(feedback.id)}/reply`, {
                     doctorReply: feedbackReplyDrafts[feedback.id] || "",
                     status: "REPLIED"
                 });
@@ -1218,7 +1230,7 @@ createApp({
                 reportChatQuestion.value = "";
             }
             try {
-                const response = await fetch(`/api/reports/${taskId}/chat?doctorId=${encodeURIComponent(currentUser.id)}`);
+                const response = await apiFetch(`/api/reports/${taskId}/chat`);
                 const result = await response.json().catch(() => null);
                 if (!response.ok || !result?.success) {
                     throw new Error(result?.message || "聊天记录加载失败");
@@ -1262,7 +1274,7 @@ createApp({
             const assistantIndex = reportChatMessages.value.length - 1;
             try {
                 reportChatAbortController = new AbortController();
-                const response = await fetch(`/api/reports/${selectedReport.value.taskId}/chat/stream?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const response = await apiFetch(`/api/reports/${selectedReport.value.taskId}/chat/stream`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -2230,7 +2242,7 @@ createApp({
                 import("https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"),
                 import("https://esm.sh/three@0.160.0/examples/jsm/controls/TrackballControls.js")
             ]);
-            const manifestResponse = await fetch(report.meshManifestUrl);
+            const manifestResponse = await apiFetch(report.meshManifestUrl);
             const manifestPayload = manifestResponse.ok ? await manifestResponse.json() : null;
             const manifestMeshes = manifestPayload?.meshes || [];
             const defaultVisibleLabelIds = new Set([1, 2, 3, 12, 13, 14, 27]);
@@ -2601,7 +2613,6 @@ createApp({
             try {
                 const minProgressTime = new Promise((resolve) => setTimeout(resolve, 1500));
                 const formData = new FormData();
-                formData.append("doctorId", currentUser.id);
                 formData.append("patientName", ctForm.patientName);
                 formData.append("patientIdCard", ctForm.patientIdCard);
                 formData.append("remark", ctForm.remark);
@@ -2635,7 +2646,7 @@ createApp({
                 return;
             }
             try {
-                const response = await fetch(`/api/ct-images/${image.id}?doctorId=${encodeURIComponent(currentUser.id)}`, {
+                const response = await apiFetch(`/api/ct-images/${image.id}`, {
                     method: "DELETE"
                 });
                 const result = await response.json().catch(() => null);
@@ -2667,7 +2678,12 @@ createApp({
             }
         }
 
-        function confirmLogout() {
+        async function confirmLogout() {
+            try {
+                await apiFetch("/api/auth/logout", { method: "POST" });
+            } catch (error) {
+                // Local logout must still succeed when the server is unavailable.
+            }
             isAuthed.value = false;
             clearAuthState();
             authForm.password = "";

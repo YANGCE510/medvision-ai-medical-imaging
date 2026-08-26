@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict
 import inspect
+import hmac
 
 
 for _name in (
@@ -24,7 +25,10 @@ for _name in (
 ):
     os.environ.setdefault(_name, "1")
 
-os.environ.setdefault("TOTALSEG_WEIGHTS_PATH", "/path/to/.totalsegmentator/nnunet/results")
+os.environ.setdefault(
+    "TOTALSEG_WEIGHTS_PATH",
+    str(Path.home() / ".totalsegmentator" / "nnunet" / "results"),
+)
 os.environ.setdefault("nnUNet_raw", os.environ["TOTALSEG_WEIGHTS_PATH"])
 os.environ.setdefault("nnUNet_preprocessed", os.environ["TOTALSEG_WEIGHTS_PATH"])
 os.environ.setdefault("nnUNet_results", os.environ["TOTALSEG_WEIGHTS_PATH"])
@@ -34,8 +38,8 @@ try:
 except Exception:
     pass
 import torch
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
 from nnunetv2.utilities.file_path_utilities import get_output_folder
 
@@ -54,8 +58,19 @@ DEFAULT_CHECKPOINT = os.environ.get("NNUNET_CHECKPOINT", "checkpoint_final.pth")
 CASE_FILE_RE = re.compile(r"^s\d+_0000\.nii\.gz$")
 
 app = FastAPI(title="Jetson TotalSegmentator nnU-Net Predictor")
+INTERNAL_API_KEY = os.environ.get("PPGL_INTERNAL_API_KEY", "").strip()
 PREDICT_LOCK = Lock()
 PREDICTOR_CACHE: "OrderedDict[tuple[Any, ...], nnUNetPredictor]" = OrderedDict()
+
+
+@app.middleware("http")
+async def require_internal_api_key(request: Request, call_next):
+    provided = request.headers.get("X-PPGL-Internal-Key", "")
+    if not INTERNAL_API_KEY:
+        return JSONResponse(status_code=503, content={"detail": "PPGL_INTERNAL_API_KEY is not configured"})
+    if not provided or not hmac.compare_digest(provided, INTERNAL_API_KEY):
+        return JSONResponse(status_code=401, content={"detail": "Invalid internal API key"})
+    return await call_next(request)
 
 
 def now_text() -> str:

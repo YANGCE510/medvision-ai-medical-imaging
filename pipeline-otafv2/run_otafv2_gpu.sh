@@ -2,9 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GPU_ENV="/path/to/anaconda3/envs/ppgl-gpu38"
+PYTHON_BIN="${PPGL_PYTHON:-$(command -v python)}"
+ENV_PREFIX="$($PYTHON_BIN -c 'import sys; print(sys.prefix)')"
 
 export PYTHONNOUSERSITE=1
-export LD_LIBRARY_PATH="${GPU_ENV}/lib:/usr/local/cuda-11.4/lib64:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="${ENV_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
-exec "${GPU_ENV}/bin/python" "${SCRIPT_DIR}/run_otafv2.py" "$@"
+exec "$PYTHON_BIN" "${SCRIPT_DIR}/run_otafv2.py" "$@"

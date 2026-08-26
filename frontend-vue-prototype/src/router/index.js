@@ -9,6 +9,8 @@ import CaseDetail from '../views/CaseDetail.vue'
 import ThreeDViewer from '../views/ThreeDViewer.vue'
 import ReportView from '../views/ReportView.vue'
 
+const KnowledgeBaseView = () => import('../views/KnowledgeBaseView.vue')
+
 const routes = [
   {
     path: '/',
@@ -35,6 +37,14 @@ const routes = [
         component: UploadCase
       },
       {
+        path: 'knowledge',
+        component: KnowledgeBaseView
+      },
+      {
+        path: 'cases/:caseId/2d',
+        redirect: route => `/cases/${route.params.caseId}/3d`
+      },
+      {
         path: 'cases/:caseId/3d',
         component: ThreeDViewer
       },
@@ -53,6 +63,17 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+router.beforeEach((to) => {
+  const authenticated = Boolean(localStorage.getItem('ppglVueUser'))
+  if (to.path !== '/login' && !authenticated) {
+    return '/login'
+  }
+  if (to.path === '/login' && authenticated) {
+    return '/dashboard'
+  }
+  return true
 })
 
 export default router

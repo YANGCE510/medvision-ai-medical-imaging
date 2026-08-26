@@ -1,11 +1,13 @@
-from fastapi import BackgroundTasks, FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import BackgroundTasks, FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 import importlib.util
+import hmac
+import jwt
 import os
 import shutil
 import subprocess
@@ -20,6 +22,7 @@ from threading import Lock
 
 from report_agent import (
     build_ai_report_chat_request,
+    call_openai_text,
     chat_with_ai_report,
     direct_ai_report_answer,
     generate_ai_report,
@@ -28,29 +31,127 @@ from report_agent import (
     stream_openai_text,
 )
 
-app = FastAPI(title="PPGL AI Segmentation API")
+app = FastAPI(title="PPGL Internal AI Service")
+
+JWT_SECRET = os.environ.get("PPGL_AUTH_JWT_SECRET", "").strip()
+INTERNAL_API_KEY = os.environ.get("PPGL_INTERNAL_API_KEY", "").strip()
+CORS_ORIGINS = [
+    item.strip()
+    for item in os.environ.get(
+        "PPGL_CORS_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",")
+    if item.strip()
+]
 
 
 # 允许前端访问后端
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 工程根目录：/path/to/PPGL/Code_ALL
+
+@app.middleware("http")
+async def require_api_authentication(request: Request, call_next):
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+
+    internal_key = request.headers.get("X-PPGL-Internal-Key", "")
+    if INTERNAL_API_KEY and internal_key and hmac.compare_digest(internal_key, INTERNAL_API_KEY):
+        delegated_user_id = request.headers.get("X-PPGL-User-Id", "").strip()
+        delegated_role = request.headers.get("X-PPGL-User-Role", "").strip().upper()
+        if delegated_user_id or delegated_role:
+            if not delegated_user_id.isdigit() or delegated_role not in {"DOCTOR", "ADMIN"}:
+                return JSONResponse(status_code=400, content={"detail": "Invalid delegated user context"})
+            request.state.auth = {
+                "kind": "delegated",
+                "uid": int(delegated_user_id),
+                "role": delegated_role,
+                "sub": request.headers.get("X-PPGL-Username", "").strip(),
+            }
+        else:
+            request.state.auth = {"kind": "internal"}
+        return await call_next(request)
+
+    authorization = request.headers.get("Authorization", "")
+    token = ""
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(None, 1)[1].strip()
+    if not token:
+        token = request.cookies.get("PPGL_ACCESS_TOKEN", "").strip()
+    if not token:
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid authentication token"})
+    if not JWT_SECRET:
+        return JSONResponse(status_code=503, content={"detail": "PPGL_AUTH_JWT_SECRET is not configured"})
+
+    try:
+        claims = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=["HS256"],
+            issuer="ppgl-analyze",
+            options={"require": ["exp", "iat", "iss", "sub", "uid", "role"]},
+        )
+    except jwt.PyJWTError:
+        return JSONResponse(status_code=401, content={"detail": "Authentication token is invalid or expired"})
+
+    if claims.get("role") not in {"DOCTOR", "ADMIN"}:
+        return JSONResponse(status_code=403, content={"detail": "Doctor access is required"})
+    request.state.auth = claims
+    path_parts = request.url.path.strip("/").split("/")
+    if len(path_parts) >= 3 and path_parts[:2] == ["api", "cases"] and path_parts[2] != "upload":
+        case_info_path = CASES_DIR / path_parts[2] / "case_info.json"
+        if claims.get("role") != "ADMIN":
+            if not case_info_path.is_file():
+                return JSONResponse(status_code=403, content={"detail": "Case ownership cannot be verified"})
+            try:
+                case_info = json.loads(case_info_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return JSONResponse(status_code=403, content={"detail": "Case ownership cannot be verified"})
+            owner_id = case_info.get("owner_user_id")
+            if owner_id != claims.get("uid"):
+                return JSONResponse(status_code=403, content={"detail": "You do not have access to this case"})
+    return await call_next(request)
+
+# 项目内目录均从当前文件定位，不依赖本机绝对路径。
 BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = Path("/path/to/PPGL/ppgl-frontend")
+PROJECT_ROOT = BASE_DIR.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend-vue-prototype"
 if str(FRONTEND_DIR) not in sys.path:
     sys.path.insert(0, str(FRONTEND_DIR))
 
-# 病例保存目录：/path/to/PPGL/Code_ALL/cases
+# 病例保存目录：ai-backend/cases
 CASES_DIR = BASE_DIR / "cases"
 CASES_DIR.mkdir(parents=True, exist_ok=True)
 RUNNING_CASES = set()
+RUNNING_PPGL_CASES = set()
 SEGMENTATION_LOCK = Lock()
+
+
+def configured_path(name: str, default: Path, base_dir: Path) -> Path:
+    configured = Path(os.environ.get(name, str(default))).expanduser()
+    return (configured if configured.is_absolute() else base_dir / configured).resolve()
+
+
+PPGL_V5_DIR = configured_path(
+    "PPGL_V5_MODEL_DIR",
+    Path("ai-backend/progress_patch_v5"),
+    PROJECT_ROOT,
+)
+PPGL_V5_CHECKPOINT = configured_path(
+    "PPGL_V5_CHECKPOINT",
+    Path("weights/model_best.pth"),
+    PPGL_V5_DIR,
+)
+PPGL_V5_MODEL_CONFIG = configured_path(
+    "PPGL_V5_MODEL_CONFIG",
+    Path("model_config.json"),
+    PPGL_V5_DIR,
+)
 
 
 class AiReportChatRequest(BaseModel):
@@ -64,6 +165,25 @@ class GenericLlmStreamChatRequest(BaseModel):
     history: List[Dict[str, Any]] = Field(default_factory=list)
     messages: Optional[List[Dict[str, Any]]] = None
     max_tokens: int = Field(default=800, ge=64, le=2000)
+
+
+class RagSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    top_k: int = Field(default=5, ge=1, le=20)
+    retrieve_k: int = Field(default=20, ge=5, le=50)
+    retrieval_mode: Literal["dense", "hybrid", "hybrid_rerank"] = "dense"
+
+
+class RagQueryRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    top_k: int = Field(default=6, ge=1, le=10)
+    retrieve_k: int = Field(default=20, ge=5, le=50)
+    retrieval_mode: Literal["dense", "hybrid", "hybrid_rerank"] = "dense"
+    max_tokens: int = Field(default=900, ge=128, le=1600)
+
+
+class RenameCaseRequest(BaseModel):
+    new_case_id: str = Field(min_length=1, max_length=120)
 
 
 def now_text() -> str:
@@ -249,6 +369,32 @@ def case_dir_for(case_id: str) -> Path:
     return case_dir
 
 
+def rewrite_case_metadata_value(value: Any, old_case_id: str, new_case_id: str, old_dir: Path, new_dir: Path) -> Any:
+    if isinstance(value, dict):
+        updated = {}
+        for key, item in value.items():
+            if key == "case_id" and isinstance(item, str):
+                updated[key] = new_case_id
+            else:
+                updated[key] = rewrite_case_metadata_value(item, old_case_id, new_case_id, old_dir, new_dir)
+        return updated
+    if isinstance(value, list):
+        return [rewrite_case_metadata_value(item, old_case_id, new_case_id, old_dir, new_dir) for item in value]
+    if isinstance(value, str):
+        return value.replace(str(old_dir), str(new_dir))
+    return value
+
+
+def rewrite_case_metadata_files(case_dir: Path, old_case_id: str, new_case_id: str, old_dir: Path) -> None:
+    for json_path in case_dir.rglob("*.json"):
+        try:
+            data = read_json(json_path)
+        except Exception:
+            continue
+        updated = rewrite_case_metadata_value(data, old_case_id, new_case_id, old_dir, case_dir)
+        write_json(json_path, updated)
+
+
 def update_status(case_dir: Path, status: str, message: str, progress: int, **extra) -> None:
     payload = {
         "case_id": case_dir.name,
@@ -259,6 +405,44 @@ def update_status(case_dir: Path, status: str, message: str, progress: int, **ex
         **extra,
     }
     write_json(case_dir / "status.json", payload)
+
+
+def update_ppgl_status(case_dir: Path, status: str, message: str, progress: int, **extra) -> None:
+    payload = {
+        "case_id": case_dir.name,
+        "task": "ppgl",
+        "status": status,
+        "message": message,
+        "progress": int(progress),
+        "updated_at": now_text(),
+        **extra,
+    }
+    write_json(case_dir / "ppgl_status.json", payload)
+
+
+def ppgl_status(case_dir: Path) -> dict:
+    status_path = case_dir / "ppgl_status.json"
+    status = read_json(status_path) if status_path.exists() else {
+        "case_id": case_dir.name,
+        "task": "ppgl",
+        "status": "uploaded",
+        "message": "等待启动 PPGL 分割",
+        "progress": 0,
+        "updated_at": "",
+    }
+    result_path = case_dir / "output" / "ppgl" / "result.json"
+    if result_path.exists() and status.get("status") != "failed":
+        completed = dict(status)
+        completed.update(
+            {
+                "status": "completed",
+                "message": status.get("message") or "PPGL 肿瘤分割完成",
+                "progress": 100,
+                "result_path": str(result_path),
+            }
+        )
+        return completed
+    return status
 
 
 def status_with_pipeline_progress(case_dir: Path) -> dict:
@@ -277,7 +461,7 @@ def status_with_pipeline_progress(case_dir: Path) -> dict:
         enriched.update(
             {
                 "status": "completed",
-                "message": status.get("message") or "AI 分割完成",
+                "message": status.get("message") or "TotalSegmentator 全器官分割完成",
                 "progress": 100,
                 "result_path": str(result_path),
             }
@@ -314,17 +498,10 @@ def status_with_pipeline_progress(case_dir: Path) -> dict:
         return status
 
     rules = [
-        ("[DONE] 5/5", 98, "正在整理最终结果", "analysis_done"),
-        ("[START] 5/5", 92, "正在生成临床指标和分析报告", "analysis"),
-        ("[DONE] 4/5", 88, "融合结果已生成", "fusion_done"),
-        ("[START] 4/5", 80, "正在融合器官和肿瘤分割结果", "fusion"),
-        ("[DONE] 3/5", 75, "APR 假阳性过滤完成", "apr_done"),
-        ("[START] 3/5", 60, "正在进行 APR 假阳性过滤", "apr"),
-        ("[DONE] 2/5", 55, "TotalSegmentator 器官分割完成", "total_done"),
-        ("[START] 2/5", 40, "正在运行 TotalSegmentator 器官分割", "total"),
-        ("GCPV5 raw label saved", 32, "正在保存 GCPV5 肿瘤分割结果", "gcp_saving"),
-        ("Starting MONAI sliding-window inference", 20, "正在运行 GCPV5 肿瘤分割", "gcp_inference"),
-        ("[START] 1/5", 15, "正在加载 GCPV5 肿瘤分割模型", "gcp"),
+        ("[DONE] 2/2", 98, "TotalSegmentator 结果整理完成", "output_done"),
+        ("[START] 2/2", 90, "正在合并器官标签并生成结果", "output"),
+        ("[DONE] 1/2", 85, "TotalSegmentator 全器官分割完成", "totalseg_done"),
+        ("[START] 1/2", 15, "正在运行 TotalSegmentator 全器官分割", "totalseg"),
     ]
 
     enriched = dict(status)
@@ -426,10 +603,6 @@ def run_segmentation_task(
     force: bool,
     totalseg_fast: bool,
     totalseg_fastest: bool,
-    gcp_amp: bool,
-    allow_tf32: bool,
-    gcp_backend: str,
-    gcp_engine: str,
 ) -> None:
     case_dir = CASES_DIR / case_id
     input_path = case_dir / "input" / "ct.nii.gz"
@@ -442,10 +615,16 @@ def run_segmentation_task(
             run_single_case = load_run_single_case()
 
             if force and output_dir.exists():
-                shutil.rmtree(output_dir)
+                for child in output_dir.iterdir():
+                    if child.name == "ppgl":
+                        continue
+                    if child.is_dir():
+                        shutil.rmtree(child)
+                    else:
+                        child.unlink()
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            update_status(case_dir, "running", "AI 分割正在运行", 10)
+            update_status(case_dir, "running", "TotalSegmentator 全器官分割正在运行", 10)
             unload_chat_model_for_segmentation(model_lifecycle_log)
             try:
                 result = run_single_case(
@@ -456,17 +635,13 @@ def run_segmentation_task(
                     mode=mode,
                     totalseg_fast=totalseg_fast,
                     totalseg_fastest=totalseg_fastest,
-                    gcp_amp=gcp_amp,
-                    allow_tf32=allow_tf32,
-                    gcp_backend=gcp_backend,
-                    gcp_engine=gcp_engine,
                 )
             finally:
                 preload_chat_model_after_segmentation(model_lifecycle_log)
             update_status(
                 case_dir,
                 "completed",
-                "AI 分割完成",
+                "TotalSegmentator 全器官分割完成",
                 100,
                 result=result,
             )
@@ -476,7 +651,7 @@ def run_segmentation_task(
         update_status(
             case_dir,
             "failed",
-            "AI 分割失败",
+            "TotalSegmentator 分割失败",
             100,
             error=str(exc),
             error_log=str(error_path),
@@ -485,13 +660,101 @@ def run_segmentation_task(
         RUNNING_CASES.discard(case_id)
 
 
+def run_ppgl_segmentation_task(
+    case_id: str,
+    device: str,
+    force: bool,
+) -> None:
+    case_dir = CASES_DIR / case_id
+    input_path = case_dir / "input" / "ct.nii.gz"
+    output_dir = case_dir / "output" / "ppgl"
+    log_path = output_dir / "inference.log"
+    model_lifecycle_log = output_dir / "model_lifecycle.log"
+
+    try:
+        RUNNING_PPGL_CASES.add(case_id)
+        with SEGMENTATION_LOCK:
+            if force and output_dir.exists():
+                shutil.rmtree(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            inference_script = PPGL_V5_DIR / "infer_single_case.py"
+            if not inference_script.is_file():
+                raise FileNotFoundError(f"PPGL V5 inference script not found: {inference_script}")
+            if not PPGL_V5_CHECKPOINT.is_file():
+                raise FileNotFoundError(f"PPGL V5 checkpoint not found: {PPGL_V5_CHECKPOINT}")
+            if not PPGL_V5_MODEL_CONFIG.is_file():
+                raise FileNotFoundError(f"PPGL V5 model config not found: {PPGL_V5_MODEL_CONFIG}")
+
+            update_ppgl_status(case_dir, "running", "ProgressPatchV5 PPGL 肿瘤分割正在运行", 10)
+            cmd = [
+                sys.executable,
+                str(inference_script),
+                "--image",
+                str(input_path),
+                "--output-dir",
+                str(output_dir),
+                "--case-id",
+                case_id,
+                "--checkpoint",
+                str(PPGL_V5_CHECKPOINT),
+                "--model-config",
+                str(PPGL_V5_MODEL_CONFIG),
+                "--device",
+                device,
+            ]
+            unload_chat_model_for_segmentation(model_lifecycle_log)
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=str(PPGL_V5_DIR),
+                    env=subprocess_runtime_env(),
+                    text=True,
+                    capture_output=True,
+                )
+            finally:
+                preload_chat_model_after_segmentation(model_lifecycle_log)
+            log_path.write_text(
+                "COMMAND:\n"
+                + " ".join(cmd)
+                + "\n\nSTDOUT:\n"
+                + completed.stdout
+                + "\n\nSTDERR:\n"
+                + completed.stderr,
+                encoding="utf-8",
+            )
+            if completed.returncode != 0:
+                raise RuntimeError(f"ProgressPatchV5 inference failed. See log: {log_path}")
+            result_path = output_dir / "result.json"
+            if not result_path.is_file():
+                raise RuntimeError("ProgressPatchV5 inference did not produce result.json")
+            result = read_json(result_path)
+            update_ppgl_status(
+                case_dir,
+                "completed",
+                "ProgressPatchV5 PPGL 肿瘤分割完成",
+                100,
+                result=result,
+            )
+    except Exception as exc:
+        error_path = case_dir / "ppgl_error.log"
+        error_path.write_text(traceback.format_exc(), encoding="utf-8")
+        update_ppgl_status(
+            case_dir,
+            "failed",
+            "PPGL 肿瘤分割失败",
+            100,
+            error=str(exc),
+            error_log=str(error_path),
+        )
+    finally:
+        RUNNING_PPGL_CASES.discard(case_id)
+
+
 def run_existing_totalseg_task(
     case_id: str,
     mode: str,
     device: str,
     totalseg_existing_dir: str,
-    gcp_backend: str = "torch",
-    gcp_engine: str = "",
 ) -> None:
     case_dir = CASES_DIR / case_id
     input_path = case_dir / "input" / "ct.nii.gz"
@@ -518,14 +781,10 @@ def run_existing_totalseg_task(
                 mode,
                 "--device",
                 device,
-                "--gcp-backend",
-                gcp_backend,
                 "--totalseg-existing-dir",
                 str(totalseg_existing_dir),
                 "--force",
             ]
-            if str(gcp_engine).strip():
-                cmd.extend(["--gcp-engine", str(gcp_engine)])
             unload_chat_model_for_segmentation(model_lifecycle_log)
             try:
                 completed = subprocess.run(
@@ -554,7 +813,7 @@ def run_existing_totalseg_task(
             update_status(
                 case_dir,
                 "completed",
-                "AI 分割完成（已复用外部 TotalSegmentator 结果）",
+                "TotalSegmentator 结果整理完成（已复用外部结果）",
                 100,
                 result=result,
             )
@@ -564,7 +823,7 @@ def run_existing_totalseg_task(
         update_status(
             case_dir,
             "failed",
-            "AI 分割失败",
+            "TotalSegmentator 结果整理失败",
             100,
             error=str(exc),
             error_log=str(error_path),
@@ -576,12 +835,12 @@ def run_existing_totalseg_task(
 @app.get("/")
 async def root():
     return {
-        "message": "PPGL AI Segmentation API is running"
+        "message": "TotalSegmentator full-organ segmentation API is running"
     }
 
 
 @app.post("/api/cases/upload")
-async def upload_ct(file: UploadFile = File(...)):
+async def upload_ct(request: Request, file: UploadFile = File(...)):
     """
     上传 .nii.gz CT 文件。
     前端字段名必须是 file。
@@ -613,6 +872,8 @@ async def upload_ct(file: UploadFile = File(...)):
         "input_path": str(input_path),
         "created_at": now_text()
     }
+    if getattr(request.state, "auth", {}).get("kind") != "internal":
+        case_info["owner_user_id"] = request.state.auth.get("uid")
 
     status_info = {
         "case_id": case_id,
@@ -624,6 +885,7 @@ async def upload_ct(file: UploadFile = File(...)):
 
     write_json(case_dir / "case_info.json", case_info)
     write_json(case_dir / "status.json", status_info)
+    update_ppgl_status(case_dir, "uploaded", "等待启动 PPGL 分割", 0)
 
     return {
         "case_id": case_id,
@@ -636,12 +898,11 @@ async def upload_ct(file: UploadFile = File(...)):
 async def run_case_with_existing_totalseg(
     case_id: str,
     background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     totalseg_zip: UploadFile = File(...),
-    mode: str = Form("abdomen"),
+    mode: str = Form("full_total"),
     device: str = Form("cuda"),
-    gcp_backend: str = Form("torch"),
-    gcp_engine: str = Form(""),
 ):
     if not (file.filename or "").endswith(".nii.gz"):
         raise HTTPException(status_code=400, detail="当前仅支持 ct.nii.gz")
@@ -649,8 +910,6 @@ async def run_case_with_existing_totalseg(
         raise HTTPException(status_code=400, detail="totalseg_zip must be a .zip file")
     if mode not in {"jetson_fast", "abdomen", "full_total"}:
         raise HTTPException(status_code=400, detail="mode must be jetson_fast, abdomen, or full_total")
-    if gcp_backend not in {"torch", "trt"}:
-        raise HTTPException(status_code=400, detail="gcp_backend must be torch or trt")
     if case_id in RUNNING_CASES:
         raise HTTPException(status_code=409, detail="Case is running")
 
@@ -662,7 +921,13 @@ async def run_case_with_existing_totalseg(
     zip_path = input_dir / "totalseg_existing.zip"
 
     if output_dir.exists():
-        shutil.rmtree(output_dir)
+        for child in output_dir.iterdir():
+            if child.name == "ppgl":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
     if totalseg_existing_dir.exists():
         shutil.rmtree(totalseg_existing_dir)
     input_dir.mkdir(parents=True, exist_ok=True)
@@ -690,12 +955,14 @@ async def run_case_with_existing_totalseg(
         "created_at": now_text(),
         "source": "external_totalseg_zip",
     }
+    if getattr(request.state, "auth", {}).get("kind") != "internal":
+        case_info["owner_user_id"] = request.state.auth.get("uid")
     write_json(case_dir / "case_info.json", case_info)
 
     update_status(
         case_dir,
         "queued",
-        "AI 分割任务已提交（复用已有 TotalSegmentator 结果）",
+        "TotalSegmentator 结果整理任务已提交（复用已有结果）",
         5,
         totalseg_existing_dir=str(totalseg_existing_dir),
         totalseg_mask_count=mask_count,
@@ -706,14 +973,12 @@ async def run_case_with_existing_totalseg(
         mode,
         device,
         str(totalseg_existing_dir),
-        gcp_backend,
-        gcp_engine,
     )
     return read_json(case_dir / "status.json")
 
 
 @app.get("/api/cases")
-async def list_cases():
+async def list_cases(request: Request):
     rows = []
     for case_dir in sorted(CASES_DIR.iterdir(), reverse=True):
         if not case_dir.is_dir():
@@ -722,12 +987,18 @@ async def list_cases():
         case_info_path = case_dir / "case_info.json"
         status = status_with_pipeline_progress(case_dir) if status_path.exists() else {}
         case_info = read_json(case_info_path) if case_info_path.exists() else {}
+        auth = request.state.auth
+        if auth.get("kind") != "internal" and auth.get("role") != "ADMIN":
+            if case_info.get("owner_user_id") != auth.get("uid"):
+                continue
         rows.append(
             {
                 "case_id": case_dir.name,
                 "status": status.get("status", "unknown"),
                 "message": status.get("message", ""),
                 "progress": status.get("progress", 0),
+                "organ_status": status,
+                "ppgl_status": ppgl_status(case_dir),
                 "original_filename": case_info.get("original_filename", ""),
                 "created_at": case_info.get("created_at", ""),
                 "updated_at": status.get("updated_at", ""),
@@ -741,7 +1012,12 @@ async def delete_case(case_id: str):
     case_dir = case_dir_for(case_id)
     status = status_with_pipeline_progress(case_dir)
 
-    if case_id in RUNNING_CASES or status.get("status") in {"queued", "running"}:
+    if (
+        case_id in RUNNING_CASES
+        or case_id in RUNNING_PPGL_CASES
+        or status.get("status") in {"queued", "running"}
+        or ppgl_status(case_dir).get("status") in {"queued", "running"}
+    ):
         raise HTTPException(status_code=409, detail="Case is running, cannot delete")
 
     try:
@@ -756,19 +1032,57 @@ async def delete_case(case_id: str):
     }
 
 
+@app.patch("/api/cases/{case_id}/case-id")
+async def rename_case(case_id: str, payload: RenameCaseRequest):
+    case_dir = case_dir_for(case_id)
+    status = status_with_pipeline_progress(case_dir)
+    new_case_id = payload.new_case_id.strip()
+    new_case_dir = validated_case_dir_path(new_case_id)
+
+    if (
+        case_id in RUNNING_CASES
+        or case_id in RUNNING_PPGL_CASES
+        or status.get("status") in {"queued", "running"}
+        or ppgl_status(case_dir).get("status") in {"queued", "running"}
+    ):
+        raise HTTPException(status_code=409, detail="Case is running, cannot rename")
+    if new_case_id != payload.new_case_id:
+        raise HTTPException(status_code=400, detail="病例编号前后不能包含空格")
+    if new_case_id == case_id:
+        return {
+            "case_id": case_id,
+            "new_case_id": new_case_id,
+            "status": "unchanged",
+            "message": "病例编号未变化",
+        }
+    if new_case_dir.exists():
+        raise HTTPException(status_code=409, detail="病例编号已存在")
+
+    old_case_dir = case_dir
+    try:
+        case_dir.rename(new_case_dir)
+        rewrite_case_metadata_files(new_case_dir, case_id, new_case_id, old_case_dir)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to rename case: {exc}")
+
+    return {
+        "case_id": new_case_id,
+        "old_case_id": case_id,
+        "status": "renamed",
+        "message": "病例编号已修改",
+    }
+
+
 @app.post("/api/cases/{case_id}/segment")
+@app.post("/api/cases/{case_id}/segment/organs")
 async def start_segmentation(
     case_id: str,
     background_tasks: BackgroundTasks,
-    mode: str = "abdomen",
+    mode: str = "full_total",
     device: str = "cuda",
     force: bool = False,
-    totalseg_fast: bool = True,
+    totalseg_fast: bool = False,
     totalseg_fastest: bool = False,
-    gcp_amp: bool = True,
-    allow_tf32: bool = True,
-    gcp_backend: str = "torch",
-    gcp_engine: str = "",
 ):
     case_dir = case_dir_for(case_id)
     input_path = case_dir / "input" / "ct.nii.gz"
@@ -778,15 +1092,13 @@ async def start_segmentation(
         raise HTTPException(status_code=404, detail="Input CT not found")
     if mode not in {"jetson_fast", "abdomen", "full_total"}:
         raise HTTPException(status_code=400, detail="mode must be jetson_fast, abdomen, or full_total")
-    if gcp_backend not in {"torch", "trt"}:
-        raise HTTPException(status_code=400, detail="gcp_backend must be torch or trt")
     if case_id in RUNNING_CASES:
         return read_json(case_dir / "status.json")
     if result_path.exists() and not force:
-        update_status(case_dir, "completed", "AI 分割已完成", 100)
+        update_status(case_dir, "completed", "TotalSegmentator 全器官分割已完成", 100)
         return read_json(case_dir / "status.json")
 
-    update_status(case_dir, "queued", "AI 分割任务已提交", 5)
+    update_status(case_dir, "queued", "TotalSegmentator 全器官分割任务已提交", 5)
     background_tasks.add_task(
         run_segmentation_task,
         case_id,
@@ -795,23 +1107,66 @@ async def start_segmentation(
         force,
         totalseg_fast,
         totalseg_fastest,
-        gcp_amp,
-        allow_tf32,
-        gcp_backend,
-        gcp_engine,
     )
     return read_json(case_dir / "status.json")
+
+
+@app.post("/api/cases/{case_id}/segment/ppgl")
+async def start_ppgl_segmentation(
+    case_id: str,
+    background_tasks: BackgroundTasks,
+    device: str = "cuda:0",
+    force: bool = False,
+):
+    case_dir = case_dir_for(case_id)
+    input_path = case_dir / "input" / "ct.nii.gz"
+    result_path = case_dir / "output" / "ppgl" / "result.json"
+    if not input_path.is_file():
+        raise HTTPException(status_code=404, detail="Input CT not found")
+    if case_id in RUNNING_PPGL_CASES:
+        return ppgl_status(case_dir)
+    if result_path.is_file() and not force:
+        update_ppgl_status(case_dir, "completed", "PPGL 肿瘤分割已完成", 100)
+        return ppgl_status(case_dir)
+
+    update_ppgl_status(case_dir, "queued", "PPGL 肿瘤分割任务已提交", 5)
+    background_tasks.add_task(run_ppgl_segmentation_task, case_id, device, force)
+    return ppgl_status(case_dir)
 
 
 @app.get("/api/cases/{case_id}/status")
 async def get_case_status(case_id: str):
     case_dir = case_dir_for(case_id)
-    return status_with_pipeline_progress(case_dir)
+    organ = status_with_pipeline_progress(case_dir)
+    return {
+        **organ,
+        "organ": organ,
+        "ppgl": ppgl_status(case_dir),
+    }
 
 
 @app.get("/api/cases/{case_id}/result")
 async def get_case_result(case_id: str):
     return read_json(output_file(case_id, "result.json"))
+
+
+@app.get("/api/cases/{case_id}/ppgl/result")
+async def get_case_ppgl_result(case_id: str):
+    case_dir = case_dir_for(case_id)
+    return read_json(case_dir / "output" / "ppgl" / "result.json")
+
+
+@app.get("/api/cases/{case_id}/ppgl/mask")
+async def get_case_ppgl_mask(case_id: str):
+    case_dir = case_dir_for(case_id)
+    mask_path = case_dir / "output" / "ppgl" / "tumor_mask.nii.gz"
+    if not mask_path.is_file():
+        raise HTTPException(status_code=404, detail="PPGL tumor mask not found")
+    return FileResponse(
+        mask_path,
+        media_type="application/gzip",
+        filename=f"{case_id}_ppgl_tumor.nii.gz",
+    )
 
 
 @app.get("/api/cases/{case_id}/overlay")
@@ -841,7 +1196,22 @@ async def get_case_slice_image(case_id: str, filename: str):
     return FileResponse(image_path, media_type="image/png")
 
 
+@app.get("/api/cases/{case_id}/ct")
+@app.get("/api/cases/{case_id}/ct.nii.gz")
+async def get_case_ct(case_id: str):
+    case_dir = case_dir_for(case_id)
+    ct_path = case_dir / "input" / "ct.nii.gz"
+    if not ct_path.is_file():
+        raise HTTPException(status_code=404, detail="CT not found")
+    return FileResponse(
+        ct_path,
+        media_type="application/gzip",
+        filename=f"{case_id}_ct.nii.gz",
+    )
+
+
 @app.get("/api/cases/{case_id}/mask")
+@app.get("/api/cases/{case_id}/mask.nii.gz")
 async def get_case_mask(case_id: str):
     return FileResponse(
         output_file(case_id, "mask.nii.gz"),
@@ -865,6 +1235,20 @@ async def get_case_mesh(case_id: str):
     )
 
 
+@app.get("/api/cases/{case_id}/mesh/{label_id}")
+async def get_case_organ_mesh(case_id: str, label_id: int):
+    if label_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid mesh label")
+    mesh_path = case_dir_for(case_id) / "output" / "meshes" / "organs" / f"{label_id}.glb"
+    if not mesh_path.is_file():
+        raise HTTPException(status_code=404, detail="High-resolution organ mesh not found")
+    return FileResponse(
+        mesh_path,
+        media_type="model/gltf-binary",
+        filename=f"{case_id}_organ_{label_id}.glb",
+    )
+
+
 @app.get("/api/cases/{case_id}/mesh-manifest")
 async def get_case_mesh_manifest(case_id: str):
     case_dir = case_dir_for(case_id)
@@ -878,12 +1262,17 @@ async def get_case_mesh_manifest(case_id: str):
 
 @app.get("/api/cases/{case_id}/report", response_class=PlainTextResponse)
 async def get_case_report(case_id: str):
-    result = read_json(output_file(case_id, "result.json"))
+    case_dir = case_dir_for(case_id)
+    result_path = case_dir / "output" / "result.json"
+    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
+    if not result_path.is_file() and not ppgl_result_path.is_file():
+        raise HTTPException(status_code=404, detail="请先完成全器官分割或 PPGL 分割")
+    result = read_json(result_path) if result_path.is_file() else {}
     ai_report_path = optional_file_path(result.get("outputs", {}).get("ai_report_markdown_path", ""))
     if ai_report_path.is_file():
         return ai_report_path.read_text(encoding="utf-8")
 
-    fallback_ai_report_path = case_dir_for(case_id) / "output" / "ai_report.md"
+    fallback_ai_report_path = case_dir / "output" / "ai_report.md"
     if fallback_ai_report_path.is_file():
         return fallback_ai_report_path.read_text(encoding="utf-8")
 
@@ -897,7 +1286,8 @@ async def get_case_report(case_id: str):
 async def generate_case_ai_report(case_id: str):
     case_dir = case_dir_for(case_id)
     result_path = case_dir / "output" / "result.json"
-    if not result_path.exists():
+    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
+    if not result_path.exists() and not ppgl_result_path.exists():
         raise HTTPException(status_code=404, detail="请先完成分割，再生成 AI 报告")
 
     try:
@@ -939,7 +1329,8 @@ async def get_case_ai_report_chat(case_id: str):
 async def chat_case_ai_report(case_id: str, payload: AiReportChatRequest):
     case_dir = case_dir_for(case_id)
     result_path = case_dir / "output" / "result.json"
-    if not result_path.exists():
+    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
+    if not result_path.exists() and not ppgl_result_path.exists():
         raise HTTPException(status_code=404, detail="请先完成分割，再进行 AI 问答")
     if not payload.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
@@ -1062,6 +1453,111 @@ async def stream_generic_llm_chat(payload: GenericLlmStreamChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.post("/api/rag/search")
+def search_rag_knowledge(payload: RagSearchRequest):
+    try:
+        from rag.vector_store import search_knowledge_with_metadata
+
+        search_payload = search_knowledge_with_metadata(
+            payload.query,
+            payload.top_k,
+            retrieve_k=payload.retrieve_k,
+            retrieval_mode=payload.retrieval_mode,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"RAG 检索失败：{exc}")
+    return {
+        "query": payload.query.strip(),
+        "top_k": payload.top_k,
+        "results": search_payload["results"],
+        "metadata": search_payload["metadata"],
+    }
+
+
+@app.post("/api/rag/query")
+def query_rag_knowledge(payload: RagQueryRequest):
+    try:
+        from rag.prompt_builder import build_knowledge_rag_prompt, citation_payload, evidence_assessment
+        from rag.vector_store import search_knowledge_with_metadata
+
+        search_payload = search_knowledge_with_metadata(
+            payload.question,
+            payload.top_k,
+            retrieve_k=payload.retrieve_k,
+            retrieval_mode=payload.retrieval_mode,
+        )
+        results = search_payload["results"]
+        prompt = build_knowledge_rag_prompt(payload.question, results)
+        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"RAG 问答失败：{exc}")
+    return {
+        "question": payload.question.strip(),
+        "answer": answer,
+        "citations": citation_payload(results),
+        "metadata": {
+            **metadata,
+            "retrieval": search_payload["metadata"]["pipeline"],
+            "retrieval_latency_ms": search_payload["metadata"]["latency_ms"],
+            "top_k": payload.top_k,
+            "evidence_assessment": evidence_assessment(answer, results),
+        },
+    }
+
+
+@app.post("/api/cases/{case_id}/rag/query")
+def query_case_rag_knowledge(case_id: str, payload: RagQueryRequest):
+    case_dir = case_dir_for(case_id)
+    try:
+        from rag.case_context import load_case_context
+        from rag.prompt_builder import build_case_rag_prompt, citation_payload, evidence_assessment
+        from rag.vector_store import search_knowledge_with_metadata
+
+        case_context = load_case_context(case_dir, payload.question)
+        search_payload = search_knowledge_with_metadata(
+            payload.question,
+            payload.top_k,
+            retrieve_k=payload.retrieve_k,
+            retrieval_mode=payload.retrieval_mode,
+        )
+        results = search_payload["results"]
+        prompt = build_case_rag_prompt(payload.question, case_context, results)
+        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"病例 RAG 问答失败：{exc}")
+    return {
+        "case_id": case_id,
+        "question": payload.question.strip(),
+        "answer": answer,
+        "case_context": case_context,
+        "citations": citation_payload(results),
+        "metadata": {
+            **metadata,
+            "retrieval": search_payload["metadata"]["pipeline"],
+            "retrieval_latency_ms": search_payload["metadata"]["latency_ms"],
+            "top_k": payload.top_k,
+            "case_aware": True,
+            "evidence_assessment": evidence_assessment(answer, results),
+        },
+    }
 
 
 @app.get("/api/cases/{case_id}/metrics")

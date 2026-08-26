@@ -1,33 +1,35 @@
 import request from './request'
 
+const AI_API = '/ai'
+
 export function getReport(caseId) {
-  return request.get(`/cases/${caseId}/report`)
+  return request.get(`${AI_API}/cases/${caseId}/report`)
 }
 
 export function getAiReport(caseId) {
-  return request.get(`/cases/${caseId}/ai-report`)
+  return request.get(`${AI_API}/cases/${caseId}/ai-report`)
 }
 
 export function generateAiReport(caseId) {
-  return request.post(`/cases/${caseId}/ai-report/generate`, null, {
+  return request.post(`${AI_API}/cases/${caseId}/ai-report/generate`, null, {
     timeout: 0
   })
 }
 
 export function getAiReportChat(caseId) {
-  return request.get(`/cases/${caseId}/ai-report/chat`)
+  return request.get(`${AI_API}/cases/${caseId}/ai-report/chat`)
 }
 
 export function chatWithAiReport(caseId, question, history = []) {
   return request.post(
-    `/cases/${caseId}/ai-report/chat`,
+    `${AI_API}/cases/${caseId}/ai-report/chat`,
     { question, history },
     { timeout: 0 }
   )
 }
 
 export async function streamAiReportChat(caseId, question, history = [], onDelta) {
-  const response = await fetch(`/api/cases/${caseId}/ai-report/chat/stream`, {
+  const response = await fetch(`/api${AI_API}/cases/${caseId}/ai-report/chat/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

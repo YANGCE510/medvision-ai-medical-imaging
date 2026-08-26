@@ -45,7 +45,7 @@ npm install element-plus @element-plus/icons-vue axios vue-router echarts three
 ### 3.1 进入前端目录
 
 ```bash
-cd ~/PPGL/ppgl-frontend
+cd frontend-vue-prototype
 ```
 
 ### 3.2 安装依赖

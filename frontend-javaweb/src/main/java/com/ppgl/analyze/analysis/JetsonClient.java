@@ -29,10 +29,16 @@ public class JetsonClient {
 
     private final String baseUrl;
     private final ObjectMapper objectMapper;
+    private final String internalApiKey;
 
-    public JetsonClient(@Value("${ppgl.jetson.base-url}") String baseUrl, ObjectMapper objectMapper) {
+    public JetsonClient(
+            @Value("${ppgl.jetson.base-url}") String baseUrl,
+            ObjectMapper objectMapper,
+            @Value("${ppgl.internal.api-key}") String internalApiKey
+    ) {
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.objectMapper = objectMapper;
+        this.internalApiKey = internalApiKey;
     }
 
     public ComputeNodeStatusResponse status() {
@@ -129,6 +135,7 @@ public class JetsonClient {
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(PORT_TIMEOUT_MS);
             connection.setReadTimeout(HEALTH_TIMEOUT_MS);
+            connection.setRequestProperty("X-PPGL-Internal-Key", internalApiKey);
 
             int statusCode = connection.getResponseCode();
             String body = readResponseBody(connection, statusCode);
@@ -176,6 +183,7 @@ public class JetsonClient {
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(0);
         connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        connection.setRequestProperty("X-PPGL-Internal-Key", internalApiKey);
 
         try (OutputStream output = connection.getOutputStream()) {
             writeField(output, boundary, "job_id", jobId);

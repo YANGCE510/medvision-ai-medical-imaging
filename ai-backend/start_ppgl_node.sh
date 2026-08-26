@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CODE_ALL_DIR="/path/to/PPGL/Code_ALL"
+CODE_ALL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$CODE_ALL_DIR/backend"
-CONDA_SH="/path/to/anaconda3/etc/profile.d/conda.sh"
-CONDA_ENV="ppgl-gpu38"
+CONDA_ENV="${CONDA_ENV:-ppgl}"
 
 BACKEND_HOST="${BACKEND_HOST:-0.0.0.0}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
@@ -12,12 +11,12 @@ MINICPM_HOST="${MINICPM_HOST:-127.0.0.1}"
 MINICPM_PORT="${MINICPM_PORT:-18080}"
 OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1}"
 OLLAMA_PORT="${OLLAMA_PORT:-11434}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:9b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-ppgl-qwen3-32b-q4:latest}"
 OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:--1}"
 
 BACKEND_LOG="$BACKEND_DIR/uvicorn_backend.log"
 MINICPM_LOG="$BACKEND_DIR/local_minicpm_server.log"
-CURL_BIN="/usr/bin/curl"
+CURL_BIN="${CURL_BIN:-$(command -v curl)}"
 
 MODE="${1:-backend-only}"
 
@@ -28,23 +27,44 @@ if [ -f "$CODE_ALL_DIR/.env" ]; then
   set +a
 fi
 
-if [ -f "$CONDA_SH" ]; then
-  # shellcheck disable=SC1090
-  source "$CONDA_SH"
+JWT_SECRET_VALUE="${PPGL_AUTH_JWT_SECRET:-}"
+if [ "$MODE" != "stop" ] && [ "${#JWT_SECRET_VALUE}" -lt 32 ]; then
+  echo "PPGL_AUTH_JWT_SECRET must be set to a random value of at least 32 characters." >&2
+  exit 1
 fi
-conda activate "$CONDA_ENV"
+if [ "$MODE" != "stop" ] && [ -z "${PPGL_INTERNAL_API_KEY:-}" ]; then
+  echo "PPGL_INTERNAL_API_KEY must be set." >&2
+  exit 1
+fi
+export PPGL_AUTH_JWT_SECRET="$JWT_SECRET_VALUE"
+export PPGL_INTERNAL_API_KEY
 
-export PATH="/path/to/anaconda3/envs/$CONDA_ENV/bin:$PATH"
-export LD_LIBRARY_PATH="/path/to/anaconda3/envs/$CONDA_ENV/lib:${LD_LIBRARY_PATH:-}"
+if command -v conda >/dev/null 2>&1; then
+  CONDA_SH="$(conda info --base)/etc/profile.d/conda.sh"
+  if [ -f "$CONDA_SH" ]; then
+    # shellcheck disable=SC1090
+    source "$CONDA_SH"
+    conda activate "$CONDA_ENV"
+  fi
+fi
+
+PYTHON_BIN="$(command -v python)"
+ENV_PREFIX="$($PYTHON_BIN -c 'import sys; print(sys.prefix)')"
+export PATH="$ENV_PREFIX/bin:$PATH"
+export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export NO_PROXY="127.0.0.1,localhost,${NO_PROXY:-}"
 export no_proxy="127.0.0.1,localhost,${no_proxy:-}"
 
 export MINICPM_MODEL_DIR="${MINICPM_MODEL_DIR:-$CODE_ALL_DIR/models/MiniCPM5-1B}"
 export CHAT_LLM_PROVIDER="${CHAT_LLM_PROVIDER:-openai_compat}"
-export CHAT_OPENAI_BASE_URL="${CHAT_OPENAI_BASE_URL:-http://127.0.0.1:$MINICPM_PORT/v1}"
-export CHAT_OPENAI_MODEL="${CHAT_OPENAI_MODEL:-MiniCPM5-1B}"
-export CHAT_OPENAI_API_KEY="${CHAT_OPENAI_API_KEY:-EMPTY}"
+export CHAT_OPENAI_BASE_URL="${CHAT_OPENAI_BASE_URL:-http://$OLLAMA_HOST:$OLLAMA_PORT/v1}"
+export CHAT_OPENAI_MODEL="${CHAT_OPENAI_MODEL:-$OLLAMA_MODEL}"
+export CHAT_OPENAI_API_KEY="${CHAT_OPENAI_API_KEY:-ollama}"
 export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:--1}"
+export REPORT_LLM_PROVIDER="${REPORT_LLM_PROVIDER:-openai_compat}"
+export REPORT_OPENAI_BASE_URL="${REPORT_OPENAI_BASE_URL:-$CHAT_OPENAI_BASE_URL}"
+export REPORT_OPENAI_MODEL="${REPORT_OPENAI_MODEL:-$CHAT_OPENAI_MODEL}"
+export REPORT_OPENAI_API_KEY="${REPORT_OPENAI_API_KEY:-$CHAT_OPENAI_API_KEY}"
 
 stop_backend() {
   pkill -f "uvicorn main:app" 2>/dev/null || true
@@ -111,6 +131,7 @@ case "$MODE" in
     stop_backend
     stop_minicpm
     stop_frontend
+    MODE="with-ollama"
     ;;
   with-chat|with-ollama)
     stop_backend
@@ -120,6 +141,10 @@ case "$MODE" in
     export CHAT_OPENAI_BASE_URL="http://$OLLAMA_HOST:$OLLAMA_PORT/v1"
     export CHAT_OPENAI_MODEL="$OLLAMA_MODEL"
     export CHAT_OPENAI_API_KEY="${CHAT_OPENAI_API_KEY:-ollama}"
+    export REPORT_LLM_PROVIDER="${REPORT_LLM_PROVIDER:-openai_compat}"
+    export REPORT_OPENAI_BASE_URL="${REPORT_OPENAI_BASE_URL:-http://$OLLAMA_HOST:$OLLAMA_PORT/v1}"
+    export REPORT_OPENAI_MODEL="${REPORT_OPENAI_MODEL:-$OLLAMA_MODEL}"
+    export REPORT_OPENAI_API_KEY="${REPORT_OPENAI_API_KEY:-ollama}"
     ;;
   with-minicpm)
     stop_backend
@@ -144,7 +169,7 @@ sleep 1
 
 if [ "$MODE" = "with-minicpm" ]; then
   cd "$BACKEND_DIR"
-  setsid python -m uvicorn local_minicpm_server:app \
+  setsid "$PYTHON_BIN" -m uvicorn local_minicpm_server:app \
     --host "$MINICPM_HOST" \
     --port "$MINICPM_PORT" \
     >> "$MINICPM_LOG" 2>&1 < /dev/null &
@@ -171,7 +196,7 @@ if [ "$MODE" = "with-chat" ] || [ "$MODE" = "with-ollama" ]; then
 fi
 
 cd "$BACKEND_DIR"
-setsid python -m uvicorn main:app \
+setsid "$PYTHON_BIN" -m uvicorn main:app \
   --host "$BACKEND_HOST" \
   --port "$BACKEND_PORT" \
   >> "$BACKEND_LOG" 2>&1 < /dev/null &
@@ -185,6 +210,8 @@ echo
 echo "Useful endpoints:"
 echo "- Pipeline/API:       http://$(hostname -I | awk '{print $1}'):$BACKEND_PORT"
 echo "- Streaming chat:     http://$(hostname -I | awk '{print $1}'):$BACKEND_PORT/api/llm/chat/stream"
+echo "- RAG search:         http://$(hostname -I | awk '{print $1}'):$BACKEND_PORT/api/rag/search"
+echo "- RAG query:          http://$(hostname -I | awk '{print $1}'):$BACKEND_PORT/api/rag/query"
 echo
 echo "Logs:"
 echo "- Backend: $BACKEND_LOG"

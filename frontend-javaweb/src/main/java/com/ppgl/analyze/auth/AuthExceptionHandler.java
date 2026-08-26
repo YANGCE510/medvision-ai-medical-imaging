@@ -5,6 +5,7 @@ import com.ppgl.analyze.analysis.AnalysisException;
 import com.ppgl.analyze.report.ReportException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +37,11 @@ public class AuthExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResponseStatusException(ResponseStatusException ex) {
         String message = ex.getReason() == null ? "请求失败" : ex.getReason();
         return ResponseEntity.status(ex.getStatusCode()).body(ApiResponse.fail(message));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.fail(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

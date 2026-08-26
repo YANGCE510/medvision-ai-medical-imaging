@@ -1,6 +1,7 @@
 # PPGL Analyze JavaWeb
 
-这是比赛项目实际使用的 JavaWeb 主应用，采用 Spring Boot 承载后端接口和静态前端页面，并包含患者端微信小程序原型。
+这是系统唯一的公开业务后端，负责身份认证、权限、业务数据和 AI 网关。
+Vue Web 只访问 Spring Boot；Spring Boot 再使用内部密钥调用 FastAPI。
 
 ## 主要功能
 
@@ -9,7 +10,17 @@
 - AI 分割任务提交、状态查询与结果归档
 - 报告列表、报告详情、医生复核与 AI 报告问答
 - 患者端随访计划、反馈和报告查看
-- 静态 Web 页面与微信小程序页面
+- Vue Web 的统一 `/api` 入口和 FastAPI AI 网关
+- 患者微信小程序原型
+
+`src/main/resources/static/` 中保留的页面是旧比赛界面，不再作为当前 Web 前端维护；
+当前唯一 Web 前端为 `frontend-vue-prototype/`。
+
+## AI 网关
+
+Vue 调用 `/api/ai/**`，Spring Boot 在校验医生/管理员 JWT 后，把请求转发给
+`ppgl.pipeline.base-url`。转发请求会携带 `X-PPGL-Internal-Key` 及受信用户上下文，
+FastAPI 不对浏览器或局域网直接暴露。
 
 ## 目录结构
 
@@ -76,4 +87,3 @@ ppgl.llm.chat-url=http://127.0.0.1:8000/api/llm/chat/stream
 ## 隐私说明
 
 本提交版没有包含 `uploads/`、`jobs/`、`target/`、嵌套备份项目、医学影像和运行结果。评审运行时请使用合规脱敏的测试数据。
-

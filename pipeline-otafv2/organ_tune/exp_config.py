@@ -18,8 +18,8 @@ class InferenceConfig:
     seed: int = 1123
     num_workers: int = 4
     center: str = "PUMCH_V3"
-    data_root: str = "/path/to/private_data/PPGL/ALL_PUMCH_mutil"
-    data_list_root: str = "/path/to/private_data/SFADA_PPGL/data_list"
+    data_root: str = "data"
+    data_list_root: str = "data_list"
     image_folder: str = "images"
     label_folder: str = "labels_multiV4"
     device: str = "cuda:0"
@@ -39,7 +39,7 @@ def _preset(
     num_classes: int = 11,
     tumor_label: int = 10,
     center: str = "PUMCH_V3",
-    data_root: str = "/path/to/private_data/PPGL/ALL_PUMCH_mutil",
+    data_root: str = "data",
 ) -> InferenceConfig:
     return InferenceConfig(
         exp_name=exp_name,
@@ -72,7 +72,7 @@ EXPERIMENT_PRESETS = {
         num_classes=9,
         tumor_label=10,
         center="ORGAN_TUNE_V1",
-        data_root="/",
+        data_root="input",
     ),
 }
 

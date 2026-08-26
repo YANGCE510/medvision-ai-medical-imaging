@@ -6,6 +6,7 @@ import queue
 import re
 import time
 import uuid
+from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, Dict, List
 
@@ -17,7 +18,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStream
 import transformers.generation.utils as generation_utils
 
 
-MODEL_DIR = os.environ.get("MINICPM_MODEL_DIR", "/path/to/PPGL/Code_ALL/models/MiniCPM5-1B")
+DEFAULT_MODEL_DIR = Path(__file__).resolve().parents[1] / "models" / "MiniCPM5-1B"
+MODEL_DIR = os.environ.get("MINICPM_MODEL_DIR", str(DEFAULT_MODEL_DIR))
 MODEL_NAME = os.environ.get("OPENAI_MODEL", "MiniCPM5-1B")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAILING_ROLE_LABEL_RE = re.compile(r"(^|[\s\r\n]+)(用户|医生|助手)([:：])?\s*$")

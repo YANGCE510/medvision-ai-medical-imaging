@@ -104,7 +104,9 @@ def _runtime_env(python_exe: str = "", conda_env: str = "") -> dict[str, str]:
     if str(conda_env).strip():
         lib_paths.append(Path.home() / "anaconda3" / "envs" / str(conda_env) / "lib")
 
-    lib_paths.append(Path("/usr/local/cuda-11.4/lib64"))
+    cuda_home = env.get("CUDA_HOME", "").strip()
+    if cuda_home:
+        lib_paths.append(Path(cuda_home).expanduser() / "lib64")
     _prepend_env_paths(env, "LD_LIBRARY_PATH", lib_paths)
     return env
 

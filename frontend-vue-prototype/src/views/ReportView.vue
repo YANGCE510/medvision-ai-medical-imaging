@@ -27,10 +27,24 @@
               <strong>初步影像辅助分析报告</strong>
               <p>可由医生审核、修订后导出</p>
             </div>
+            <el-button-group>
+              <el-button :type="reportMode === 'preview' ? 'primary' : ''" @click="reportMode = 'preview'">
+                预览
+              </el-button>
+              <el-button :type="reportMode === 'edit' ? 'primary' : ''" @click="reportMode = 'edit'">
+                编辑
+              </el-button>
+            </el-button-group>
           </div>
         </template>
 
+        <div
+          v-if="reportMode === 'preview'"
+          class="report-markdown"
+          v-html="renderMarkdown(report)"
+        ></div>
         <el-input
+          v-else
           v-model="report"
           type="textarea"
           :rows="24"
@@ -67,7 +81,8 @@
               {{ message.role === 'user' ? '医生提问' : 'AI 回答' }}
             </div>
             <div class="chat-content">
-              {{ message.content }}<span v-if="message.streaming" class="typing-cursor"></span>
+              <div class="markdown-content" v-html="renderMarkdown(message.content)"></div>
+              <span v-if="message.streaming" class="typing-cursor"></span>
             </div>
           </div>
         </div>
@@ -105,6 +120,7 @@
 <script setup>
 import { nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import MarkdownIt from 'markdown-it'
 import { useRoute, useRouter } from 'vue-router'
 import {
   generateAiReport,
@@ -115,16 +131,26 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const markdown = new MarkdownIt({
+  html: false,
+  breaks: true,
+  linkify: false
+})
 
 const caseId = route.params.caseId
 const loading = ref(false)
 const generating = ref(false)
 const report = ref('')
+const reportMode = ref('preview')
 const chatLoading = ref(false)
 const chatSending = ref(false)
 const chatQuestion = ref('')
 const chatMessages = ref([])
 const chatMessagesEl = ref(null)
+
+function renderMarkdown(content) {
+  return markdown.render(String(content || ''))
+}
 
 async function scrollChatToBottom() {
   await nextTick()
@@ -278,6 +304,79 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.report-markdown {
+  min-height: 560px;
+  max-height: 760px;
+  overflow: auto;
+  padding: 18px 22px;
+  border: 1px solid rgba(93, 235, 219, 0.22);
+  border-radius: var(--ppgl-radius);
+  background:
+    linear-gradient(90deg, rgba(93, 235, 219, 0.045) 1px, transparent 1px),
+    rgba(5, 16, 26, 0.72);
+  background-size: 28px 28px;
+  color: var(--ppgl-text);
+  line-height: 1.7;
+}
+
+.report-markdown :deep(> :first-child) {
+  margin-top: 0;
+}
+
+.report-markdown :deep(> :last-child) {
+  margin-bottom: 0;
+}
+
+.report-markdown :deep(h1),
+.report-markdown :deep(h2),
+.report-markdown :deep(h3),
+.report-markdown :deep(h4) {
+  margin: 22px 0 12px;
+  color: #ffffff;
+}
+
+.report-markdown :deep(p),
+.report-markdown :deep(ul),
+.report-markdown :deep(ol) {
+  margin: 0 0 12px;
+}
+
+.report-markdown :deep(ul),
+.report-markdown :deep(ol) {
+  padding-left: 24px;
+}
+
+.report-markdown :deep(table) {
+  width: 100%;
+  margin: 14px 0 20px;
+  border-collapse: collapse;
+  background: rgba(5, 16, 26, 0.82);
+  font-size: 13px;
+}
+
+.report-markdown :deep(th),
+.report-markdown :deep(td) {
+  padding: 9px 12px;
+  border: 1px solid rgba(93, 235, 219, 0.25);
+  text-align: left;
+  vertical-align: top;
+}
+
+.report-markdown :deep(th) {
+  background: rgba(32, 224, 196, 0.12);
+  color: #ffffff;
+}
+
+.report-markdown :deep(tr:nth-child(even)) {
+  background: rgba(93, 235, 219, 0.035);
+}
+
+.report-markdown :deep(code) {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(93, 235, 219, 0.1);
+}
+
 .actions {
   margin-top: 18px;
   display: flex;
@@ -332,9 +431,31 @@ onMounted(() => {
 }
 
 .chat-content {
-  white-space: pre-wrap;
   line-height: 1.65;
   color: var(--ppgl-text);
+}
+
+.chat-content :deep(.markdown-content > :first-child) {
+  margin-top: 0;
+}
+
+.chat-content :deep(.markdown-content > :last-child) {
+  margin-bottom: 0;
+}
+
+.chat-content :deep(p),
+.chat-content :deep(ul),
+.chat-content :deep(ol) {
+  margin: 0 0 10px;
+}
+
+.chat-content :deep(ul),
+.chat-content :deep(ol) {
+  padding-left: 24px;
+}
+
+.chat-content :deep(strong) {
+  color: #ffffff;
 }
 
 .typing-cursor {

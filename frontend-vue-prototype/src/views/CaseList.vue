@@ -16,35 +16,62 @@
         <el-table-column prop="case_id" label="病例编号" min-width="180" />
         <el-table-column prop="created_at" label="上传时间" width="180" />
 
-        <el-table-column label="分割状态" width="140">
+        <el-table-column label="独立任务状态" width="190">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
-              {{ getStatusText(row.status) }}
-            </el-tag>
+            <div class="task-statuses">
+              <span>全器官 <el-tag size="small" :type="getStatusType(row.organ_status?.status)">{{ getStatusText(row.organ_status?.status) }}</el-tag></span>
+              <span>PPGL <el-tag size="small" :type="getStatusType(row.ppgl_status?.status)">{{ getStatusText(row.ppgl_status?.status) }}</el-tag></span>
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="进度" width="140">
+        <el-table-column label="独立进度" width="180">
           <template #default="{ row }">
-            <el-progress :percentage="row.progress || 0" :show-text="false" />
+            <div class="task-progresses">
+              <span>全器官 <el-progress :percentage="row.organ_status?.progress || 0" :show-text="false" /></span>
+              <span>PPGL <el-progress :percentage="row.ppgl_status?.progress || 0" :show-text="false" /></span>
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="message" label="状态说明" min-width="180" />
+        <el-table-column label="状态说明" min-width="210">
+          <template #default="{ row }">
+            <div class="task-messages">
+              <span>全器官：{{ row.organ_status?.message || '-' }}</span>
+              <span>PPGL：{{ row.ppgl_status?.message || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
 
-        <el-table-column label="操作" width="340">
+        <el-table-column label="操作" width="560">
           <template #default="{ row }">
             <el-button size="small" :icon="View" @click="goDetail(row.case_id)">结果</el-button>
             <el-button
-              v-if="row.status === 'uploaded' || row.status === 'queued' || row.status === 'failed'"
+              size="small"
+              :icon="Edit"
+              :disabled="isCaseActive(row)"
+              @click="renameCase(row)"
+            >
+              修改编号
+            </el-button>
+            <el-button
+              v-if="canStartTask(row.organ_status?.status)"
+              size="small"
+              :icon="VideoPlay"
+              @click="segmentOrgans(row.case_id)"
+            >
+              全器官
+            </el-button>
+            <el-button
+              v-if="canStartTask(row.ppgl_status?.status)"
               size="small"
               type="warning"
               :icon="VideoPlay"
-              @click="segment(row.case_id)"
+              @click="segmentPpgl(row.case_id)"
             >
-              分割
+              PPGL
             </el-button>
-            <el-button size="small" type="primary" :icon="DataAnalysis" @click="go3D(row.case_id)">三维</el-button>
+            <el-button size="small" type="primary" :icon="DataAnalysis" @click="go3D(row.case_id)">联合阅片</el-button>
             <el-button size="small" type="success" :icon="Document" @click="goReport(row.case_id)">报告</el-button>
           </template>
         </el-table-column>
@@ -55,17 +82,24 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import {
   DataAnalysis,
   Document,
+  Edit,
   Refresh,
   UploadFilled,
   VideoPlay,
   View
 } from '@element-plus/icons-vue'
-import { JETSON_TRT_SEGMENTATION_PARAMS, getCaseList, startSegmentation } from '../api/caseApi'
+import {
+  TOTALSEGMENTATOR_PARAMS,
+  getCaseList,
+  startOrganSegmentation,
+  startPpglSegmentation,
+  updateCaseId
+} from '../api/caseApi'
 
 const router = useRouter()
 
@@ -96,7 +130,19 @@ function getStatusText(status) {
 }
 
 function hasActiveCase() {
-  return cases.value.some(row => row.status === 'queued' || row.status === 'running')
+  return cases.value.some(isCaseActive)
+}
+
+function isTaskActive(status) {
+  return status === 'queued' || status === 'running'
+}
+
+function isCaseActive(row) {
+  return isTaskActive(row.organ_status?.status) || isTaskActive(row.ppgl_status?.status)
+}
+
+function canStartTask(status) {
+  return !status || status === 'uploaded' || status === 'failed'
 }
 
 function clearPoll() {
@@ -113,6 +159,10 @@ function ensurePolling() {
 
 function goUpload() {
   router.push('/upload')
+}
+
+function caseRoute(caseId) {
+  return encodeURIComponent(caseId)
 }
 
 async function loadCases(silent = false) {
@@ -132,27 +182,62 @@ async function loadCases(silent = false) {
   }
 }
 
-async function segment(caseId) {
+async function renameCase(row) {
   try {
-    await startSegmentation(caseId, JETSON_TRT_SEGMENTATION_PARAMS)
-    ElMessage.success('已启动智能分割任务')
+    const { value } = await ElMessageBox.prompt('请输入新的病例编号', '修改病例编号', {
+      customClass: 'rename-case-message-box',
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputValue: row.case_id,
+      inputPattern: /^[^/\\]+$/,
+      inputErrorMessage: '病例编号不能为空，且不能包含 / 或 \\'
+    })
+    const newCaseId = value.trim()
+    if (!newCaseId) {
+      ElMessage.warning('病例编号不能为空')
+      return
+    }
+    await updateCaseId(row.case_id, newCaseId)
+    ElMessage.success('病例编号已修改')
     await loadCases()
-    router.push(`/cases/${caseId}`)
   } catch (err) {
-    ElMessage.error(err?.response?.data?.detail || '启动分割失败')
+    if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err?.response?.data?.detail || '修改病例编号失败')
+  }
+}
+
+async function segmentOrgans(caseId) {
+  try {
+    await startOrganSegmentation(caseId, TOTALSEGMENTATOR_PARAMS)
+    ElMessage.success('已启动全器官分割')
+    await loadCases()
+    router.push(`/cases/${caseRoute(caseId)}`)
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '启动全器官分割失败')
+  }
+}
+
+async function segmentPpgl(caseId) {
+  try {
+    await startPpglSegmentation(caseId, { device: 'cuda:0' })
+    ElMessage.success('已启动 PPGL 肿瘤分割')
+    await loadCases()
+    router.push(`/cases/${caseRoute(caseId)}`)
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '启动 PPGL 分割失败')
   }
 }
 
 function goDetail(caseId) {
-  router.push(`/cases/${caseId}`)
+  router.push(`/cases/${caseRoute(caseId)}`)
 }
 
 function go3D(caseId) {
-  router.push(`/cases/${caseId}/3d`)
+  router.push(`/cases/${caseRoute(caseId)}/3d`)
 }
 
 function goReport(caseId) {
-  router.push(`/cases/${caseId}/report`)
+  router.push(`/cases/${caseRoute(caseId)}/report`)
 }
 
 onMounted(() => loadCases())
@@ -168,6 +253,32 @@ onUnmounted(clearPoll)
   border-radius: var(--ppgl-radius);
   border-color: rgba(93, 235, 219, 0.22);
   background: rgba(8, 23, 36, 0.78);
+}
+
+.task-statuses {
+  display: grid;
+  gap: 6px;
+}
+
+.task-statuses span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-progresses,
+.task-messages {
+  display: grid;
+  gap: 6px;
+}
+
+.task-progresses span {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
 }
 
 :deep(.el-progress-bar__outer) {

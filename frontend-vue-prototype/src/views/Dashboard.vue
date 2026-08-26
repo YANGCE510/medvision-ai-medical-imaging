@@ -3,9 +3,9 @@
     <section class="overview-intro">
       <div class="intro-copy">
         <div class="section-kicker">Clinical Imaging AI Workbench</div>
-        <h1>PPGL 术前 CT 智能分割与辅助分析</h1>
+        <h1>CT 全器官智能分割与辅助分析</h1>
         <p>
-          面向 PPGL 术前影像评估，整合 CT 上传、肿瘤与器官分割、量化指标、三维重建和 AI 辅助报告。
+          基于 TotalSegmentator 整合 CT 上传、全器官分割、体积统计、三维重建和结果报告。
         </p>
 
         <div class="intro-actions">
@@ -110,8 +110,8 @@ const secondaryActions = [
     icon: markRaw(View)
   },
   {
-    title: '三维重建',
-    desc: '查看 3D 模型',
+    title: '2D / 3D 联合阅片',
+    desc: '同屏查看三轴位切片与 3D 模型',
     path: '/cases/demo-case/3d',
     icon: markRaw(DataAnalysis)
   },
@@ -131,7 +131,7 @@ const workflowSteps = [
   },
   {
     title: 'AI 分割',
-    desc: '肿瘤及多器官自动分割',
+    desc: 'TotalSegmentator 全器官自动分割',
     active: true,
     current: true
   },

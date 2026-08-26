@@ -32,6 +32,8 @@ uploads/
 jobs/
 cases/
 agent_cases/
+ai-backend/knowledge_base/documents/
+ai-backend/knowledge_base/index/
 
 # Model weights / binary inference engines
 *.pth

@@ -12,13 +12,9 @@ def run_single_case(
     output_dir: str,
     device: str = "cuda",
     case_id: str = "",
-    mode: str = "abdomen",
-    totalseg_fast: bool = True,
+    mode: str = "full_total",
+    totalseg_fast: bool = False,
     totalseg_fastest: bool = False,
-    gcp_amp: bool = True,
-    allow_tf32: bool = True,
-    gcp_backend: str = "torch",
-    gcp_engine: str = "",
 ):
     """
     单病例推理包装函数。
@@ -52,8 +48,6 @@ def run_single_case(
         device,
         "--mode",
         mode,
-        "--gcp-backend",
-        gcp_backend,
     ]
     if case_id:
         cmd += ["--case-id", case_id]
@@ -61,17 +55,6 @@ def run_single_case(
         cmd.append("--totalseg-fast")
     if totalseg_fastest:
         cmd.append("--totalseg-fastest")
-    if gcp_amp:
-        cmd.append("--gcp-amp")
-    else:
-        cmd.append("--no-gcp-amp")
-    if allow_tf32:
-        cmd.append("--allow-tf32")
-    else:
-        cmd.append("--no-allow-tf32")
-    if str(gcp_engine).strip():
-        cmd += ["--gcp-engine", str(gcp_engine)]
-
     result = subprocess.run(
         cmd,
         cwd=str(FRONTEND_DIR),

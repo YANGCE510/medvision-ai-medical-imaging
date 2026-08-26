@@ -1,0 +1,2629 @@
+{
+  "dataset": "ai-backend/knowledge_base/evaluation/questions.json",
+  "top_k": 10,
+  "retrieve_k": 20,
+  "pipelines": {
+    "dense": {
+      "summary": {
+        "recall_at_1": 0.6,
+        "recall_at_5": 0.8,
+        "recall_at_10": 0.95,
+        "reciprocal_rank": 0.6892,
+        "ndcg_at_5": 0.7031,
+        "questions": 20,
+        "mean_latency_ms": 118.99,
+        "p95_latency_ms": 53.66
+      },
+      "questions": [
+        {
+          "id": "q01",
+          "question": "PPGL 的 CT 影像表现和术前血管评估要点是什么？",
+          "latency_ms": 1425.28,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0025",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > A. Role of imaging",
+              "score": 0.6668182139847421
+            },
+            {
+              "chunk_id": "PMC12819074_0098",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-1 Methods for assessing metastasis risk > Evidence > A. Clinical Findings and Staging",
+              "score": 0.6522492191509981
+            },
+            {
+              "chunk_id": "PMC10335895_0018",
+              "document_id": "PMC10335895",
+              "section": "Clinical treatment > SURGICAL TREATMENT",
+              "score": 0.6522292297411422
+            },
+            {
+              "chunk_id": "PMC12819074_0032",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 1) Inhibition of excess catecholamine action in preoperative and non-surgical cases of functional PPGL",
+              "score": 0.6443436821558715
+            },
+            {
+              "chunk_id": "PMC12819074_0024",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Statements",
+              "score": 0.6434179431394375
+            }
+          ]
+        },
+        {
+          "id": "q02",
+          "question": "嗜铬细胞瘤在 MRI 上有哪些常见特征？",
+          "latency_ms": 48.19,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.1,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 10,
+          "top_results": [
+            {
+              "chunk_id": "PMC10335895_0007",
+              "document_id": "PMC10335895",
+              "section": "GENETICS",
+              "score": 0.5500075920134784
+            },
+            {
+              "chunk_id": "PMC7729715_0015",
+              "document_id": "PMC7729715",
+              "section": "Magnetic Resonance Imaging",
+              "score": 0.5450371994592551
+            },
+            {
+              "chunk_id": "PMC6827093_0013",
+              "document_id": "PMC6827093",
+              "section": "3. Diagnosis > 3.2. Imaging for Diagnosis, Staging, and Follow-Up",
+              "score": 0.5387526380461363
+            },
+            {
+              "chunk_id": "PMC12819074_0056",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > C. Imaging",
+              "score": 0.5369962206508968
+            },
+            {
+              "chunk_id": "PMC10335895_0009",
+              "document_id": "PMC10335895",
+              "section": "GENETICS > Paragangliomas",
+              "score": 0.5301522904807634
+            }
+          ]
+        },
+        {
+          "id": "q03",
+          "question": "MIBG 显像在 PPGL 诊断中的优势和局限是什么？",
+          "latency_ms": 49.86,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0028",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > D. 123 I-MIBG scintigraphy",
+              "score": 0.6346331345816679
+            },
+            {
+              "chunk_id": "PMC10335895_0014",
+              "document_id": "PMC10335895",
+              "section": "Imaging / Localization Diagnosis",
+              "score": 0.6032271368169528
+            },
+            {
+              "chunk_id": "PMC10335895_0019",
+              "document_id": "PMC10335895",
+              "section": "Treatment with 131I-mIBG",
+              "score": 0.5986098714412087
+            },
+            {
+              "chunk_id": "PMC7729715_0017",
+              "document_id": "PMC7729715",
+              "section": "123 I-metaiodobenzylguanidine (123 I-MIBG) Scintigraphy",
+              "score": 0.5938001272725824
+            },
+            {
+              "chunk_id": "PMC12819074_0025",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > A. Role of imaging",
+              "score": 0.5916746230876161
+            }
+          ]
+        },
+        {
+          "id": "q04",
+          "question": "嗜铬细胞瘤手术前为什么需要 alpha 受体阻滞？",
+          "latency_ms": 50.39,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.6058156542363903
+            },
+            {
+              "chunk_id": "PMC6827093_0023",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.5731941008426009
+            },
+            {
+              "chunk_id": "PMC6827093_0022",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.5607414037885966
+            },
+            {
+              "chunk_id": "PMC12819074_0033",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 2) Selective α 1 -blockers",
+              "score": 0.5589360633162072
+            },
+            {
+              "chunk_id": "PMC12819074_0031",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Statements",
+              "score": 0.5528693871581631
+            }
+          ]
+        },
+        {
+          "id": "q05",
+          "question": "术前可以选择哪些选择性 alpha-1 受体阻滞剂？",
+          "latency_ms": 51.18,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0033",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 2) Selective α 1 -blockers",
+              "score": 0.6759774562941234
+            },
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.6596095188945645
+            },
+            {
+              "chunk_id": "PMC12819074_0031",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Statements",
+              "score": 0.6394923413611185
+            },
+            {
+              "chunk_id": "PMC6827093_0023",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.6164523484790012
+            },
+            {
+              "chunk_id": "PMC12819074_0066",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Evidence > D. Treatment > 1) Medical treatment",
+              "score": 0.6162346566492196
+            }
+          ]
+        },
+        {
+          "id": "q06",
+          "question": "现有 meta-analysis 对 PPGL 术前 alpha 阻滞的证据结论是什么？",
+          "latency_ms": 53.66,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.16666666666666666,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 6,
+          "top_results": [
+            {
+              "chunk_id": "PMC10389437_0002",
+              "document_id": "PMC10389437",
+              "section": "Introduction",
+              "score": 0.6325775487820644
+            },
+            {
+              "chunk_id": "PMC10389437_0001",
+              "document_id": "PMC10389437",
+              "section": "Background:",
+              "score": 0.6318093466985657
+            },
+            {
+              "chunk_id": "PMC12819074_0098",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-1 Methods for assessing metastasis risk > Evidence > A. Clinical Findings and Staging",
+              "score": 0.6225647087229795
+            },
+            {
+              "chunk_id": "PMC10389437_0027",
+              "document_id": "PMC10389437",
+              "section": "Conclusions",
+              "score": 0.6200489053129365
+            },
+            {
+              "chunk_id": "PMC10389437_0005",
+              "document_id": "PMC10389437",
+              "section": "Materials and methods > Study eligibility",
+              "score": 0.6110638626516163
+            }
+          ]
+        },
+        {
+          "id": "q07",
+          "question": "PPGL 的生化诊断为什么优先检测 metanephrines？",
+          "latency_ms": 49.81,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0009",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 2. Biochemical tests of pheochromocytoma/paraganglioma > 2.1. Initial biochemical tests of PPGL should include measurements of plasma free metanephrines or urinary fractionated metanephrines (A)",
+              "score": 0.6906914264264661
+            },
+            {
+              "chunk_id": "PMC10335895_0013",
+              "document_id": "PMC10335895",
+              "section": "Laboratory Diagnosis",
+              "score": 0.6758248301502192
+            },
+            {
+              "chunk_id": "PMC12819074_0072",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence > A. Diagnosis",
+              "score": 0.6707771426451035
+            },
+            {
+              "chunk_id": "PMC7729715_0010",
+              "document_id": "PMC7729715",
+              "section": "Biochemical Tests",
+              "score": 0.6492389602067584
+            },
+            {
+              "chunk_id": "PMC6827093_0012",
+              "document_id": "PMC6827093",
+              "section": "3. Diagnosis > 3.1. Biochemistry > Conclusion/Practical Tips",
+              "score": 0.6487508416986814
+            }
+          ]
+        },
+        {
+          "id": "q08",
+          "question": "SDHx 突变无症状携带者应如何初筛和随访？",
+          "latency_ms": 51.24,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8205850_0017",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening > End of follow-up",
+              "score": 0.6929060518453837
+            },
+            {
+              "chunk_id": "PMC8205850_0020",
+              "document_id": "PMC8205850",
+              "section": "Conclusions",
+              "score": 0.6861571767752792
+            },
+            {
+              "chunk_id": "PMC8205850_0015",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening",
+              "score": 0.6855978395128082
+            },
+            {
+              "chunk_id": "PMC8205850_0003",
+              "document_id": "PMC8205850",
+              "section": "Introduction",
+              "score": 0.6830078918930678
+            },
+            {
+              "chunk_id": "PMC8205850_0018",
+              "document_id": "PMC8205850",
+              "section": "Additional expert recommendations",
+              "score": 0.6781048274864492
+            }
+          ]
+        },
+        {
+          "id": "q09",
+          "question": "SDHB 突变和 PPGL 转移风险有什么关系？",
+          "latency_ms": 49.37,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0008",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Penetrance, Epidemiology, and Metastatic Risk",
+              "score": 0.6551311725861617
+            },
+            {
+              "chunk_id": "PMC8090459_0016",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 4. Pathological grading system of pheochromocytoma/paraganglioma > 4.2. The loss of SDHB protein by IHC staining in tumor cells is suggested to detect the presence of germline mutations in one of the SDHx genes. PPGLs associated with SDHB mutation have a high risk of metastases (B)",
+              "score": 0.6423526307315348
+            },
+            {
+              "chunk_id": "PMC8205850_0003",
+              "document_id": "PMC8205850",
+              "section": "Introduction",
+              "score": 0.6178654132485201
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.6120956024415237
+            },
+            {
+              "chunk_id": "PMC8090459_0003",
+              "document_id": "PMC8090459",
+              "section": "Main text",
+              "score": 0.6093301201875162
+            }
+          ]
+        },
+        {
+          "id": "q10",
+          "question": "PPGL 为什么建议进行遗传检测？",
+          "latency_ms": 46.29,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.1,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 10,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0017",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 5. Genetic testing for pheochromocytoma/paraganglioma > 5.1. Genetic testing is recommended in all patients diagnosed with PPGLs (A)",
+              "score": 0.7440871870795934
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.7357214621352834
+            },
+            {
+              "chunk_id": "PMC12819074_0087",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 2) Significance in patients’ blood relatives",
+              "score": 0.7182365385131718
+            },
+            {
+              "chunk_id": "PMC12819074_0086",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 1) Significance in patients with PPGL",
+              "score": 0.71212409518619
+            },
+            {
+              "chunk_id": "PMC8090459_0018",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 5. Genetic testing for pheochromocytoma/paraganglioma > 5.2. Genetic testing should be also considered for first-degree relatives of patients with hereditary PPGLs (B)",
+              "score": 0.7070244811571186
+            }
+          ]
+        },
+        {
+          "id": "q11",
+          "question": "为什么不建议在排除 PPGL 之前对肾上腺或腹膜后肿块穿刺？",
+          "latency_ms": 53.53,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.25,
+          "ndcg_at_5": 0.43067655807339306,
+          "first_relevant_rank": 4,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0022",
+              "document_id": "PMC7729715",
+              "section": "Biopsy",
+              "score": 0.6217481875880563
+            },
+            {
+              "chunk_id": "PMC12819074_0057",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > D. Preoperative pathological diagnosis",
+              "score": 0.6154722406553563
+            },
+            {
+              "chunk_id": "PMC10335895_0018",
+              "document_id": "PMC10335895",
+              "section": "Clinical treatment > SURGICAL TREATMENT",
+              "score": 0.61019184838994
+            },
+            {
+              "chunk_id": "PMC6827093_0016",
+              "document_id": "PMC6827093",
+              "section": "3. Diagnosis > 3.3. Biopsy Is Not Recommended",
+              "score": 0.594986470009204
+            },
+            {
+              "chunk_id": "PMC12819074_0032",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 1) Inhibition of excess catecholamine action in preoperative and non-surgical cases of functional PPGL",
+              "score": 0.5832695656203362
+            }
+          ]
+        },
+        {
+          "id": "q12",
+          "question": "PPGL 精准医学管理如何根据分子分型选择治疗？",
+          "latency_ms": 48.48,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0020",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment",
+              "score": 0.6737475010760857
+            },
+            {
+              "chunk_id": "PMC8905338_0057",
+              "document_id": "PMC8905338",
+              "section": "Vision and Outlook",
+              "score": 0.6677359514962996
+            },
+            {
+              "chunk_id": "PMC8905338_0005",
+              "document_id": "PMC8905338",
+              "section": "Background and Relevance",
+              "score": 0.6660052282762052
+            },
+            {
+              "chunk_id": "PMC12819074_0088",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-13 Medical treatment algorithm according to genetic pathogenic variants > Statements",
+              "score": 0.6620543311576854
+            },
+            {
+              "chunk_id": "PMC8905338_0002",
+              "document_id": "PMC8905338",
+              "section": "Main text",
+              "score": 0.6593692146148296
+            }
+          ]
+        },
+        {
+          "id": "q13",
+          "question": "嗜铬细胞瘤和交感性副神经节瘤手术后的长期结局如何？",
+          "latency_ms": 51.8,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC10252063_0010",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.3. Survival Analysis",
+              "score": 0.5810556643592848
+            },
+            {
+              "chunk_id": "PMC10252063_0014",
+              "document_id": "PMC10252063",
+              "section": "5. Conclusions",
+              "score": 0.5683890242272197
+            },
+            {
+              "chunk_id": "PMC10252063_0008",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.1. New Tumor Recurrence",
+              "score": 0.559731765620189
+            },
+            {
+              "chunk_id": "PMC12819074_0122",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-5 Treatment of bone metastases > Evidence > C. Skeletal-Related Events (SREs)",
+              "score": 0.5571958243248444
+            },
+            {
+              "chunk_id": "PMC12819074_0110",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-3 Radionuclide therapy > Evidence > A. 131 I-MIBG radiotherapy > 2) Adverse Events",
+              "score": 0.5559406508592563
+            }
+          ]
+        },
+        {
+          "id": "q14",
+          "question": "哪些临床特征提示 PPGL 转移风险较高？",
+          "latency_ms": 48.12,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0011",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Clinical Presentations",
+              "score": 0.6782481320398115
+            },
+            {
+              "chunk_id": "PMC12819074_0098",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-1 Methods for assessing metastasis risk > Evidence > A. Clinical Findings and Staging",
+              "score": 0.6660782312116341
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.6610322486530094
+            },
+            {
+              "chunk_id": "PMC7729715_0001",
+              "document_id": "PMC7729715",
+              "section": "Abstract",
+              "score": 0.659339770809622
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.6585613827059178
+            }
+          ]
+        },
+        {
+          "id": "q15",
+          "question": "妊娠期 PPGL 的诊断和影像检查有哪些特殊考虑？",
+          "latency_ms": 49.34,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.3333333333333333,
+          "ndcg_at_5": 0.5,
+          "first_relevant_rank": 3,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0006",
+              "document_id": "PMC7729715",
+              "section": "Pheochromocytoma/Paraganglioma in Pregnancy",
+              "score": 0.6895287452711769
+            },
+            {
+              "chunk_id": "PMC7729715_0007",
+              "document_id": "PMC7729715",
+              "section": "Pheochromocytoma/Paraganglioma in Pregnancy",
+              "score": 0.6780940107540266
+            },
+            {
+              "chunk_id": "PMC12819074_0063",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Evidence > B. Major symptoms",
+              "score": 0.6739751054143353
+            },
+            {
+              "chunk_id": "PMC12819074_0065",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Evidence > C. Diagnosis > 2) Imaging diagnosis",
+              "score": 0.6699252110139704
+            },
+            {
+              "chunk_id": "PMC12819074_0061",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Statements",
+              "score": 0.660924389883098
+            }
+          ]
+        },
+        {
+          "id": "q16",
+          "question": "头颈部副神经节瘤应该如何进行影像评估？",
+          "latency_ms": 48.36,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0052",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Statements",
+              "score": 0.6120549694030571
+            },
+            {
+              "chunk_id": "PMC12819074_0056",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > C. Imaging",
+              "score": 0.6103996620165684
+            },
+            {
+              "chunk_id": "PMC7729715_0021",
+              "document_id": "PMC7729715",
+              "section": "Which Imaging Method to Whom?",
+              "score": 0.5844506836314323
+            },
+            {
+              "chunk_id": "PMC12819074_0058",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > E. Treatment > 1) Surveillance therapy",
+              "score": 0.5826849741861146
+            },
+            {
+              "chunk_id": "PMC8377944_0007",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.5798010623797832
+            }
+          ]
+        },
+        {
+          "id": "q17",
+          "question": "TotalSegmentator 原始 CT 模型可以分割多少种解剖结构？",
+          "latency_ms": 51.55,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_arxiv_metadata_2208.05868_0001",
+              "document_id": "11_totalsegmentator_arxiv_metadata_2208.05868",
+              "section": "Abstract",
+              "score": 0.68554275826743
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0001",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator",
+              "score": 0.6495273390783548
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0008",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Subtasks",
+              "score": 0.6240384573441604
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0027",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Class details",
+              "score": 0.6202390699737588
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0025",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Reference",
+              "score": 0.609399943886402
+            }
+          ]
+        },
+        {
+          "id": "q18",
+          "question": "How can TotalSegmentator be installed and executed from the command line?",
+          "latency_ms": 51.79,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0002",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation",
+              "score": 0.7330745811088026
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0012",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Other commands",
+              "score": 0.7047894051654908
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0017",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Python API",
+              "score": 0.6924787728992827
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0023",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Running v1",
+              "score": 0.6923075656371633
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0015",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Run via docker",
+              "score": 0.6833128073885104
+            }
+          ]
+        },
+        {
+          "id": "q19",
+          "question": "继发性高血压患者怀疑 PPGL 时应该如何诊断和定位？",
+          "latency_ms": 51.65,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8377944_0007",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.6910147012988053
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.6736243331612217
+            },
+            {
+              "chunk_id": "PMC8377944_0009",
+              "document_id": "PMC8377944",
+              "section": "Conclusion",
+              "score": 0.6693220432073674
+            },
+            {
+              "chunk_id": "PMC10335895_0006",
+              "document_id": "PMC10335895",
+              "section": "INVESTIGATION",
+              "score": 0.6612986691859631
+            },
+            {
+              "chunk_id": "PMC12819074_0095",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-14 Prognosis and lifelong surveillance > Evidence > B. Postoperative follow-up",
+              "score": 0.6602648451049955
+            }
+          ]
+        },
+        {
+          "id": "q20",
+          "question": "PPGL 有哪些常见临床表现，从症状到诊断的流程是什么？",
+          "latency_ms": 49.87,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.3333333333333333,
+          "ndcg_at_5": 0.5,
+          "first_relevant_rank": 3,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0011",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Clinical Presentations",
+              "score": 0.7040400649216241
+            },
+            {
+              "chunk_id": "PMC12819074_0071",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence",
+              "score": 0.6835811311253952
+            },
+            {
+              "chunk_id": "PMC7729715_0001",
+              "document_id": "PMC7729715",
+              "section": "Abstract",
+              "score": 0.6822573508028813
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.6761540062742885
+            },
+            {
+              "chunk_id": "PMC10335895_0004",
+              "document_id": "PMC10335895",
+              "section": "CLINICAL PICTURE AND INVESTIGATION",
+              "score": 0.669419248149518
+            }
+          ]
+        }
+      ]
+    },
+    "hybrid": {
+      "summary": {
+        "recall_at_1": 0.35,
+        "recall_at_5": 0.65,
+        "recall_at_10": 0.85,
+        "reciprocal_rank": 0.4789,
+        "ndcg_at_5": 0.5005,
+        "questions": 20,
+        "mean_latency_ms": 46.63,
+        "p95_latency_ms": 48.38
+      },
+      "questions": [
+        {
+          "id": "q01",
+          "question": "PPGL 的 CT 影像表现和术前血管评估要点是什么？",
+          "latency_ms": 102.63,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.2,
+          "ndcg_at_5": 0.38685280723454163,
+          "first_relevant_rank": 5,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0012",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 3. Imaging of pheochromocytoma/paraganglioma > 3.1. Once there is clear biochemical evidence of a PPGL, anatomic imaging by CT is the first-choice imaging modality to locate PPGLs. MRI is the second-choice imaging method when CT findings are inconclusive or when patients are poor candidate to undergo contrast-enhanced CT (A)",
+              "score": 0.030679156908665108
+            },
+            {
+              "chunk_id": "PMC10335895_0014",
+              "document_id": "PMC10335895",
+              "section": "Imaging / Localization Diagnosis",
+              "score": 0.02904040404040404
+            },
+            {
+              "chunk_id": "PMC6827093_0015",
+              "document_id": "PMC6827093",
+              "section": "3. Diagnosis > 3.2. Imaging for Diagnosis, Staging, and Follow-Up > Conclusion/Practical Tips",
+              "score": 0.028577260665441927
+            },
+            {
+              "chunk_id": "PMC7729715_0021",
+              "document_id": "PMC7729715",
+              "section": "Which Imaging Method to Whom?",
+              "score": 0.028373015873015873
+            },
+            {
+              "chunk_id": "PMC12819074_0025",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > A. Role of imaging",
+              "score": 0.01639344262295082
+            }
+          ]
+        },
+        {
+          "id": "q02",
+          "question": "嗜铬细胞瘤在 MRI 上有哪些常见特征？",
+          "latency_ms": 45.94,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0015",
+              "document_id": "PMC7729715",
+              "section": "Magnetic Resonance Imaging",
+              "score": 0.0315136476426799
+            },
+            {
+              "chunk_id": "PMC12819074_0027",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > C. MRI",
+              "score": 0.030679156908665108
+            },
+            {
+              "chunk_id": "PMC8905338_0015",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Imaging",
+              "score": 0.029437229437229435
+            },
+            {
+              "chunk_id": "PMC8905338_0016",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Imaging",
+              "score": 0.02797339593114241
+            },
+            {
+              "chunk_id": "PMC8905338_0017",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Imaging",
+              "score": 0.027313266443701224
+            }
+          ]
+        },
+        {
+          "id": "q03",
+          "question": "MIBG 显像在 PPGL 诊断中的优势和局限是什么？",
+          "latency_ms": 45.29,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0028",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > D. 123 I-MIBG scintigraphy",
+              "score": 0.03278688524590164
+            },
+            {
+              "chunk_id": "PMC10335895_0019",
+              "document_id": "PMC10335895",
+              "section": "Treatment with 131I-mIBG",
+              "score": 0.03200204813108039
+            },
+            {
+              "chunk_id": "PMC10335895_0014",
+              "document_id": "PMC10335895",
+              "section": "Imaging / Localization Diagnosis",
+              "score": 0.0315136476426799
+            },
+            {
+              "chunk_id": "PMC7729715_0017",
+              "document_id": "PMC7729715",
+              "section": "123 I-metaiodobenzylguanidine (123 I-MIBG) Scintigraphy",
+              "score": 0.03125
+            },
+            {
+              "chunk_id": "PMC8090459_0014",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 3. Imaging of pheochromocytoma/paraganglioma > 3.4. In PPGL patients planning for 131 I-MIBG treatment, 123 I-MIBG imaging is necessary for treatment decision and response monitoring. 68 Ga-DOTA-SSA PET/CT is necessary in patients with metastatic PPGLs when PRRT is planned (B)",
+              "score": 0.030158730158730156
+            }
+          ]
+        },
+        {
+          "id": "q04",
+          "question": "嗜铬细胞瘤手术前为什么需要 alpha 受体阻滞？",
+          "latency_ms": 43.0,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.03278688524590164
+            },
+            {
+              "chunk_id": "PMC6827093_0022",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.031746031746031744
+            },
+            {
+              "chunk_id": "PMC6827093_0023",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.03128054740957967
+            },
+            {
+              "chunk_id": "PMC8905338_0024",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Tyrosine hydroxylase inhibitor metyrosine",
+              "score": 0.031054405392392875
+            },
+            {
+              "chunk_id": "PMC8905338_0054",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 3 > Treatment",
+              "score": 0.028958333333333336
+            }
+          ]
+        },
+        {
+          "id": "q05",
+          "question": "术前可以选择哪些选择性 alpha-1 受体阻滞剂？",
+          "latency_ms": 43.69,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.16666666666666666,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 6,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.03252247488101534
+            },
+            {
+              "chunk_id": "PMC8905338_0024",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Tyrosine hydroxylase inhibitor metyrosine",
+              "score": 0.03128054740957967
+            },
+            {
+              "chunk_id": "PMC6827093_0023",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.031009615384615385
+            },
+            {
+              "chunk_id": "PMC6827093_0022",
+              "document_id": "PMC6827093",
+              "section": "5. Therapy",
+              "score": 0.029631255487269532
+            },
+            {
+              "chunk_id": "PMC10389437_0004",
+              "document_id": "PMC10389437",
+              "section": "Materials and methods > Search strategy",
+              "score": 0.027205882352941177
+            }
+          ]
+        },
+        {
+          "id": "q06",
+          "question": "现有 meta-analysis 对 PPGL 术前 alpha 阻滞的证据结论是什么？",
+          "latency_ms": 45.98,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.25,
+          "ndcg_at_5": 0.43067655807339306,
+          "first_relevant_rank": 4,
+          "top_results": [
+            {
+              "chunk_id": "PMC10389437_0001",
+              "document_id": "PMC10389437",
+              "section": "Background:",
+              "score": 0.03200204813108039
+            },
+            {
+              "chunk_id": "PMC10389437_0027",
+              "document_id": "PMC10389437",
+              "section": "Conclusions",
+              "score": 0.031754032258064516
+            },
+            {
+              "chunk_id": "PMC10389437_0002",
+              "document_id": "PMC10389437",
+              "section": "Introduction",
+              "score": 0.031544957774465976
+            },
+            {
+              "chunk_id": "PMC10389437_0015",
+              "document_id": "PMC10389437",
+              "section": "Result > Intraoperative hemodynamic outcomes > Minimum systolic blood pressure",
+              "score": 0.02862400327131466
+            },
+            {
+              "chunk_id": "PMC10389437_0026",
+              "document_id": "PMC10389437",
+              "section": "Discussion",
+              "score": 0.028594771241830064
+            }
+          ]
+        },
+        {
+          "id": "q07",
+          "question": "PPGL 的生化诊断为什么优先检测 metanephrines？",
+          "latency_ms": 42.44,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0009",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 2. Biochemical tests of pheochromocytoma/paraganglioma > 2.1. Initial biochemical tests of PPGL should include measurements of plasma free metanephrines or urinary fractionated metanephrines (A)",
+              "score": 0.03278688524590164
+            },
+            {
+              "chunk_id": "PMC8905338_0014",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Biochemistry",
+              "score": 0.029437229437229435
+            },
+            {
+              "chunk_id": "PMC12819074_0020",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-2 Endocrine investigations > Evidence > A. Endocrinological diagnosis > 2) Measurement of catecholamines and metabolites > c) Plasma-free fractionated metanephrines",
+              "score": 0.029273504273504274
+            },
+            {
+              "chunk_id": "PMC12819074_0072",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence > A. Diagnosis",
+              "score": 0.029206349206349208
+            },
+            {
+              "chunk_id": "PMC8377944_0006",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.02919863597612958
+            }
+          ]
+        },
+        {
+          "id": "q08",
+          "question": "SDHx 突变无症状携带者应如何初筛和随访？",
+          "latency_ms": 43.56,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8205850_0003",
+              "document_id": "PMC8205850",
+              "section": "Introduction",
+              "score": 0.031754032258064516
+            },
+            {
+              "chunk_id": "PMC8205850_0001",
+              "document_id": "PMC8205850",
+              "section": "Abstract",
+              "score": 0.031544957774465976
+            },
+            {
+              "chunk_id": "PMC8205850_0015",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening",
+              "score": 0.03149801587301587
+            },
+            {
+              "chunk_id": "PMC8205850_0018",
+              "document_id": "PMC8205850",
+              "section": "Additional expert recommendations",
+              "score": 0.03125763125763126
+            },
+            {
+              "chunk_id": "PMC8205850_0017",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening > End of follow-up",
+              "score": 0.03047794966520434
+            }
+          ]
+        },
+        {
+          "id": "q09",
+          "question": "SDHB 突变和 PPGL 转移风险有什么关系？",
+          "latency_ms": 41.74,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0008",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Penetrance, Epidemiology, and Metastatic Risk",
+              "score": 0.032266458495966696
+            },
+            {
+              "chunk_id": "PMC8090459_0016",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 4. Pathological grading system of pheochromocytoma/paraganglioma > 4.2. The loss of SDHB protein by IHC staining in tumor cells is suggested to detect the presence of germline mutations in one of the SDHx genes. PPGLs associated with SDHB mutation have a high risk of metastases (B)",
+              "score": 0.03225806451612903
+            },
+            {
+              "chunk_id": "PMC12819074_0077",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-11 Histopathological diagnosis > Evidence > B. Pathological diagnosis of hereditary PPGL",
+              "score": 0.030679156908665108
+            },
+            {
+              "chunk_id": "PMC8205850_0007",
+              "document_id": "PMC8205850",
+              "section": "Initial screening > Genetic penetrance",
+              "score": 0.029877369007803793
+            },
+            {
+              "chunk_id": "PMC12819074_0082",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > B. Proportion of hereditary PPGL in Japan",
+              "score": 0.029513888888888888
+            }
+          ]
+        },
+        {
+          "id": "q10",
+          "question": "PPGL 为什么建议进行遗传检测？",
+          "latency_ms": 38.63,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.029827662395050816
+            },
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.02946912242686891
+            },
+            {
+              "chunk_id": "PMC12819074_0080",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Statements",
+              "score": 0.02900988017658188
+            },
+            {
+              "chunk_id": "PMC12819074_0086",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 1) Significance in patients with PPGL",
+              "score": 0.028612012987012988
+            },
+            {
+              "chunk_id": "PMC12819074_0074",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence > C. Hereditary PPGL",
+              "score": 0.027222222222222224
+            }
+          ]
+        },
+        {
+          "id": "q11",
+          "question": "为什么不建议在排除 PPGL 之前对肾上腺或腹膜后肿块穿刺？",
+          "latency_ms": 45.96,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.125,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 8,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0010",
+              "document_id": "PMC7729715",
+              "section": "Biochemical Tests",
+              "score": 0.027106227106227107
+            },
+            {
+              "chunk_id": "PMC7729715_0022",
+              "document_id": "PMC7729715",
+              "section": "Biopsy",
+              "score": 0.01639344262295082
+            },
+            {
+              "chunk_id": "PMC12819074_0136",
+              "document_id": "PMC12819074",
+              "section": "Chapter IV: Conclusions",
+              "score": 0.01639344262295082
+            },
+            {
+              "chunk_id": "PMC12819074_0057",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > D. Preoperative pathological diagnosis",
+              "score": 0.016129032258064516
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.016129032258064516
+            }
+          ]
+        },
+        {
+          "id": "q12",
+          "question": "PPGL 精准医学管理如何根据分子分型选择治疗？",
+          "latency_ms": 41.11,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.3333333333333333,
+          "ndcg_at_5": 0.5,
+          "first_relevant_rank": 3,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0136",
+              "document_id": "PMC12819074",
+              "section": "Chapter IV: Conclusions",
+              "score": 0.02938045560996381
+            },
+            {
+              "chunk_id": "PMC12819074_0135",
+              "document_id": "PMC12819074",
+              "section": "Chapter III: Perspectives > B. Issues in treatment",
+              "score": 0.02862400327131466
+            },
+            {
+              "chunk_id": "PMC8905338_0020",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment",
+              "score": 0.01639344262295082
+            },
+            {
+              "chunk_id": "PMC8905338_0057",
+              "document_id": "PMC8905338",
+              "section": "Vision and Outlook",
+              "score": 0.016129032258064516
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.016129032258064516
+            }
+          ]
+        },
+        {
+          "id": "q13",
+          "question": "嗜铬细胞瘤和交感性副神经节瘤手术后的长期结局如何？",
+          "latency_ms": 43.93,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC10252063_0010",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.3. Survival Analysis",
+              "score": 0.01639344262295082
+            },
+            {
+              "chunk_id": "PMC10252063_0014",
+              "document_id": "PMC10252063",
+              "section": "5. Conclusions",
+              "score": 0.016129032258064516
+            },
+            {
+              "chunk_id": "PMC10252063_0008",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.1. New Tumor Recurrence",
+              "score": 0.015873015873015872
+            },
+            {
+              "chunk_id": "PMC12819074_0122",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-5 Treatment of bone metastases > Evidence > C. Skeletal-Related Events (SREs)",
+              "score": 0.015625
+            },
+            {
+              "chunk_id": "PMC12819074_0110",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-3 Radionuclide therapy > Evidence > A. 131 I-MIBG radiotherapy > 2) Adverse Events",
+              "score": 0.015384615384615385
+            }
+          ]
+        },
+        {
+          "id": "q14",
+          "question": "哪些临床特征提示 PPGL 转移风险较高？",
+          "latency_ms": 48.38,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.14285714285714285,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 7,
+          "top_results": [
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.0315136476426799
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.029571646010002173
+            },
+            {
+              "chunk_id": "PMC10335895_0001",
+              "document_id": "PMC10335895",
+              "section": "ABSTRACT",
+              "score": 0.029437229437229435
+            },
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.02804284323271665
+            },
+            {
+              "chunk_id": "PMC8905338_0011",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Clinical Presentations",
+              "score": 0.01639344262295082
+            }
+          ]
+        },
+        {
+          "id": "q15",
+          "question": "妊娠期 PPGL 的诊断和影像检查有哪些特殊考虑？",
+          "latency_ms": 44.86,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.1111111111111111,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 9,
+          "top_results": [
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.029877369007803793
+            },
+            {
+              "chunk_id": "PMC12819074_0136",
+              "document_id": "PMC12819074",
+              "section": "Chapter IV: Conclusions",
+              "score": 0.02938045560996381
+            },
+            {
+              "chunk_id": "PMC12819074_0071",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence",
+              "score": 0.028381642512077296
+            },
+            {
+              "chunk_id": "PMC12819074_0086",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 1) Significance in patients with PPGL",
+              "score": 0.027912386121341344
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.0273972602739726
+            }
+          ]
+        },
+        {
+          "id": "q16",
+          "question": "头颈部副神经节瘤应该如何进行影像评估？",
+          "latency_ms": 41.26,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0052",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Statements",
+              "score": 0.01639344262295082
+            },
+            {
+              "chunk_id": "PMC12819074_0056",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > C. Imaging",
+              "score": 0.016129032258064516
+            },
+            {
+              "chunk_id": "PMC7729715_0021",
+              "document_id": "PMC7729715",
+              "section": "Which Imaging Method to Whom?",
+              "score": 0.015873015873015872
+            },
+            {
+              "chunk_id": "PMC12819074_0058",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > E. Treatment > 1) Surveillance therapy",
+              "score": 0.015625
+            },
+            {
+              "chunk_id": "PMC8377944_0007",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.015384615384615385
+            }
+          ]
+        },
+        {
+          "id": "q17",
+          "question": "TotalSegmentator 原始 CT 模型可以分割多少种解剖结构？",
+          "latency_ms": 43.82,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0001",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator",
+              "score": 0.03252247488101534
+            },
+            {
+              "chunk_id": "11_totalsegmentator_arxiv_metadata_2208.05868_0001",
+              "document_id": "11_totalsegmentator_arxiv_metadata_2208.05868",
+              "section": "Abstract",
+              "score": 0.030679156908665108
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0008",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Subtasks",
+              "score": 0.029957522915269395
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0025",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Reference",
+              "score": 0.029877369007803793
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0003",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Usage",
+              "score": 0.029083245521601686
+            }
+          ]
+        },
+        {
+          "id": "q18",
+          "question": "How can TotalSegmentator be installed and executed from the command line?",
+          "latency_ms": 43.78,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0012",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Other commands",
+              "score": 0.03225806451612903
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0023",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Running v1",
+              "score": 0.03149801587301587
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0011",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Other commands",
+              "score": 0.031099324975891997
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0017",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Python API",
+              "score": 0.03057889822595705
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0010",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Advanced settings",
+              "score": 0.029083245521601686
+            }
+          ]
+        },
+        {
+          "id": "q19",
+          "question": "继发性高血压患者怀疑 PPGL 时应该如何诊断和定位？",
+          "latency_ms": 44.08,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.25,
+          "ndcg_at_5": 0.43067655807339306,
+          "first_relevant_rank": 4,
+          "top_results": [
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.03225806451612903
+            },
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.030090497737556562
+            },
+            {
+              "chunk_id": "PMC12819074_0071",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence",
+              "score": 0.02877846790890269
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.02862400327131466
+            },
+            {
+              "chunk_id": "PMC10335895_0013",
+              "document_id": "PMC10335895",
+              "section": "Laboratory Diagnosis",
+              "score": 0.027205882352941177
+            }
+          ]
+        },
+        {
+          "id": "q20",
+          "question": "PPGL 有哪些常见临床表现，从症状到诊断的流程是什么？",
+          "latency_ms": 42.51,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.031754032258064516
+            },
+            {
+              "chunk_id": "PMC12819074_0071",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence",
+              "score": 0.030621785881252923
+            },
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.02946912242686891
+            },
+            {
+              "chunk_id": "PMC10335895_0001",
+              "document_id": "PMC10335895",
+              "section": "ABSTRACT",
+              "score": 0.028991596638655463
+            },
+            {
+              "chunk_id": "PMC10335895_0008",
+              "document_id": "PMC10335895",
+              "section": "GENETICS > von Hippel-Lindau (VHL) Syndrome",
+              "score": 0.028693528693528692
+            }
+          ]
+        }
+      ]
+    },
+    "hybrid_rerank": {
+      "summary": {
+        "recall_at_1": 0.4,
+        "recall_at_5": 0.8,
+        "recall_at_10": 0.9,
+        "reciprocal_rank": 0.5967,
+        "ndcg_at_5": 0.6393,
+        "questions": 20,
+        "mean_latency_ms": 4296.9,
+        "p95_latency_ms": 4633.81
+      },
+      "questions": [
+        {
+          "id": "q01",
+          "question": "PPGL 的 CT 影像表现和术前血管评估要点是什么？",
+          "latency_ms": 5615.11,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0021",
+              "document_id": "PMC7729715",
+              "section": "Which Imaging Method to Whom?",
+              "score": 0.8673648238182068
+            },
+            {
+              "chunk_id": "PMC12819074_0025",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > A. Role of imaging",
+              "score": 0.7205012440681458
+            },
+            {
+              "chunk_id": "PMC12819074_0026",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > B. CT",
+              "score": 0.5470577478408813
+            },
+            {
+              "chunk_id": "PMC10335895_0014",
+              "document_id": "PMC10335895",
+              "section": "Imaging / Localization Diagnosis",
+              "score": 0.5084680318832397
+            },
+            {
+              "chunk_id": "PMC12819074_0024",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Statements",
+              "score": 0.4558812975883484
+            }
+          ]
+        },
+        {
+          "id": "q02",
+          "question": "嗜铬细胞瘤在 MRI 上有哪些常见特征？",
+          "latency_ms": 4633.81,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0015",
+              "document_id": "PMC7729715",
+              "section": "Magnetic Resonance Imaging",
+              "score": 0.3824395537376404
+            },
+            {
+              "chunk_id": "PMC12819074_0027",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > C. MRI",
+              "score": 0.0954151526093483
+            },
+            {
+              "chunk_id": "PMC8905338_0015",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Imaging",
+              "score": 0.09245507419109344
+            },
+            {
+              "chunk_id": "PMC8905338_0018",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Follow-Up",
+              "score": 0.04076995328068733
+            },
+            {
+              "chunk_id": "PMC8090459_0012",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 3. Imaging of pheochromocytoma/paraganglioma > 3.1. Once there is clear biochemical evidence of a PPGL, anatomic imaging by CT is the first-choice imaging modality to locate PPGLs. MRI is the second-choice imaging method when CT findings are inconclusive or when patients are poor candidate to undergo contrast-enhanced CT (A)",
+              "score": 0.03854183852672577
+            }
+          ]
+        },
+        {
+          "id": "q03",
+          "question": "MIBG 显像在 PPGL 诊断中的优势和局限是什么？",
+          "latency_ms": 4430.83,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.3333333333333333,
+          "ndcg_at_5": 0.5,
+          "first_relevant_rank": 3,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0025",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > A. Role of imaging",
+              "score": 0.9848158359527588
+            },
+            {
+              "chunk_id": "PMC12819074_0024",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Statements",
+              "score": 0.9454824924468994
+            },
+            {
+              "chunk_id": "PMC12819074_0028",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > D. 123 I-MIBG scintigraphy",
+              "score": 0.935084879398346
+            },
+            {
+              "chunk_id": "PMC12819074_0072",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence > A. Diagnosis",
+              "score": 0.8598251342773438
+            },
+            {
+              "chunk_id": "PMC10335895_0014",
+              "document_id": "PMC10335895",
+              "section": "Imaging / Localization Diagnosis",
+              "score": 0.8484228849411011
+            }
+          ]
+        },
+        {
+          "id": "q04",
+          "question": "嗜铬细胞瘤手术前为什么需要 alpha 受体阻滞？",
+          "latency_ms": 4243.74,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0024",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Tyrosine hydroxylase inhibitor metyrosine",
+              "score": 0.8880177140235901
+            },
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.8760932683944702
+            },
+            {
+              "chunk_id": "PMC12819074_0031",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Statements",
+              "score": 0.7876861691474915
+            },
+            {
+              "chunk_id": "PMC12819074_0033",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 2) Selective α 1 -blockers",
+              "score": 0.716078519821167
+            },
+            {
+              "chunk_id": "PMC10389437_0004",
+              "document_id": "PMC10389437",
+              "section": "Materials and methods > Search strategy",
+              "score": 0.6440932154655457
+            }
+          ]
+        },
+        {
+          "id": "q05",
+          "question": "术前可以选择哪些选择性 alpha-1 受体阻滞剂？",
+          "latency_ms": 4209.33,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0033",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Evidence > A. Principles of preoperative and post-diagnostic treatment > 2) Selective α 1 -blockers",
+              "score": 0.9912701845169067
+            },
+            {
+              "chunk_id": "PMC8905338_0023",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Alpha-adrenoceptor blockade",
+              "score": 0.9873073101043701
+            },
+            {
+              "chunk_id": "PMC12819074_0031",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-4 Medical Treatment > Statements",
+              "score": 0.9778441190719604
+            },
+            {
+              "chunk_id": "PMC8905338_0024",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment > Tyrosine hydroxylase inhibitor metyrosine",
+              "score": 0.9105086326599121
+            },
+            {
+              "chunk_id": "PMC8905338_0054",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 3 > Treatment",
+              "score": 0.5519614219665527
+            }
+          ]
+        },
+        {
+          "id": "q06",
+          "question": "现有 meta-analysis 对 PPGL 术前 alpha 阻滞的证据结论是什么？",
+          "latency_ms": 3884.71,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.16666666666666666,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 6,
+          "top_results": [
+            {
+              "chunk_id": "PMC10389437_0027",
+              "document_id": "PMC10389437",
+              "section": "Conclusions",
+              "score": 0.9950612187385559
+            },
+            {
+              "chunk_id": "PMC10389437_0002",
+              "document_id": "PMC10389437",
+              "section": "Introduction",
+              "score": 0.9928963780403137
+            },
+            {
+              "chunk_id": "PMC10389437_0025",
+              "document_id": "PMC10389437",
+              "section": "Discussion",
+              "score": 0.9853354692459106
+            },
+            {
+              "chunk_id": "PMC10389437_0001",
+              "document_id": "PMC10389437",
+              "section": "Background:",
+              "score": 0.9755818843841553
+            },
+            {
+              "chunk_id": "PMC10389437_0026",
+              "document_id": "PMC10389437",
+              "section": "Discussion",
+              "score": 0.9746111631393433
+            }
+          ]
+        },
+        {
+          "id": "q07",
+          "question": "PPGL 的生化诊断为什么优先检测 metanephrines？",
+          "latency_ms": 4418.54,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0009",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 2. Biochemical tests of pheochromocytoma/paraganglioma > 2.1. Initial biochemical tests of PPGL should include measurements of plasma free metanephrines or urinary fractionated metanephrines (A)",
+              "score": 0.9830675721168518
+            },
+            {
+              "chunk_id": "PMC8090459_0010",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 2. Biochemical tests of pheochromocytoma/paraganglioma > 2.2. Measurements of urinary dopamine and plasma 3-methoxytyramine are useful for the biochemical diagnosis of PPGLs with predominantly dopamine secretion and/or high risk for metastases (C)",
+              "score": 0.9634935259819031
+            },
+            {
+              "chunk_id": "PMC8377944_0006",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.9546103477478027
+            },
+            {
+              "chunk_id": "PMC12819074_0072",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence > A. Diagnosis",
+              "score": 0.8826581835746765
+            },
+            {
+              "chunk_id": "PMC7729715_0010",
+              "document_id": "PMC7729715",
+              "section": "Biochemical Tests",
+              "score": 0.8667314052581787
+            }
+          ]
+        },
+        {
+          "id": "q08",
+          "question": "SDHx 突变无症状携带者应如何初筛和随访？",
+          "latency_ms": 4225.48,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8205850_0020",
+              "document_id": "PMC8205850",
+              "section": "Conclusions",
+              "score": 0.996427595615387
+            },
+            {
+              "chunk_id": "PMC8205850_0015",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening",
+              "score": 0.9953486323356628
+            },
+            {
+              "chunk_id": "PMC8205850_0001",
+              "document_id": "PMC8205850",
+              "section": "Abstract",
+              "score": 0.9938279986381531
+            },
+            {
+              "chunk_id": "PMC8205850_0003",
+              "document_id": "PMC8205850",
+              "section": "Introduction",
+              "score": 0.9937030673027039
+            },
+            {
+              "chunk_id": "PMC8205850_0017",
+              "document_id": "PMC8205850",
+              "section": "Follow-up after a first negative initial screening > End of follow-up",
+              "score": 0.992106556892395
+            }
+          ]
+        },
+        {
+          "id": "q09",
+          "question": "SDHB 突变和 PPGL 转移风险有什么关系？",
+          "latency_ms": 4404.3,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0016",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 4. Pathological grading system of pheochromocytoma/paraganglioma > 4.2. The loss of SDHB protein by IHC staining in tumor cells is suggested to detect the presence of germline mutations in one of the SDHx genes. PPGLs associated with SDHB mutation have a high risk of metastases (B)",
+              "score": 0.9786685109138489
+            },
+            {
+              "chunk_id": "PMC8205850_0007",
+              "document_id": "PMC8205850",
+              "section": "Initial screening > Genetic penetrance",
+              "score": 0.9610918760299683
+            },
+            {
+              "chunk_id": "PMC8205850_0003",
+              "document_id": "PMC8205850",
+              "section": "Introduction",
+              "score": 0.9439540505409241
+            },
+            {
+              "chunk_id": "PMC8905338_0008",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Penetrance, Epidemiology, and Metastatic Risk",
+              "score": 0.8948779106140137
+            },
+            {
+              "chunk_id": "PMC8905338_0003",
+              "document_id": "PMC8905338",
+              "section": "Background and Relevance",
+              "score": 0.8570712208747864
+            }
+          ]
+        },
+        {
+          "id": "q10",
+          "question": "PPGL 为什么建议进行遗传检测？",
+          "latency_ms": 4235.4,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "reciprocal_rank": 0.0,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": null,
+          "top_results": [
+            {
+              "chunk_id": "PMC8090459_0017",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 5. Genetic testing for pheochromocytoma/paraganglioma > 5.1. Genetic testing is recommended in all patients diagnosed with PPGLs (A)",
+              "score": 0.9990146160125732
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.9886172413825989
+            },
+            {
+              "chunk_id": "PMC12819074_0087",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 2) Significance in patients’ blood relatives",
+              "score": 0.9879423975944519
+            },
+            {
+              "chunk_id": "PMC8090459_0018",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 5. Genetic testing for pheochromocytoma/paraganglioma > 5.2. Genetic testing should be also considered for first-degree relatives of patients with hereditary PPGLs (B)",
+              "score": 0.9846958518028259
+            },
+            {
+              "chunk_id": "PMC12819074_0086",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-12 Genetic testing and genetic counseling > Evidence > D. Genetic counseling for hereditary PPGL > 1) Significance in patients with PPGL",
+              "score": 0.977968156337738
+            }
+          ]
+        },
+        {
+          "id": "q11",
+          "question": "为什么不建议在排除 PPGL 之前对肾上腺或腹膜后肿块穿刺？",
+          "latency_ms": 4059.75,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.1,
+          "ndcg_at_5": 0.0,
+          "first_relevant_rank": 10,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0022",
+              "document_id": "PMC7729715",
+              "section": "Biopsy",
+              "score": 0.4955539107322693
+            },
+            {
+              "chunk_id": "PMC12819074_0057",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > D. Preoperative pathological diagnosis",
+              "score": 0.18216592073440552
+            },
+            {
+              "chunk_id": "PMC10335895_0018",
+              "document_id": "PMC10335895",
+              "section": "Clinical treatment > SURGICAL TREATMENT",
+              "score": 0.13993941247463226
+            },
+            {
+              "chunk_id": "PMC7729715_0010",
+              "document_id": "PMC7729715",
+              "section": "Biochemical Tests",
+              "score": 0.11539221554994583
+            },
+            {
+              "chunk_id": "PMC8377944_0006",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.10253287106752396
+            }
+          ]
+        },
+        {
+          "id": "q12",
+          "question": "PPGL 精准医学管理如何根据分子分型选择治疗？",
+          "latency_ms": 4197.09,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.3333333333333333,
+          "ndcg_at_5": 0.5,
+          "first_relevant_rank": 3,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0135",
+              "document_id": "PMC12819074",
+              "section": "Chapter III: Perspectives > B. Issues in treatment",
+              "score": 0.9501233696937561
+            },
+            {
+              "chunk_id": "PMC8905338_0002",
+              "document_id": "PMC8905338",
+              "section": "Main text",
+              "score": 0.925732433795929
+            },
+            {
+              "chunk_id": "PMC8905338_0020",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Treatment",
+              "score": 0.8555858135223389
+            },
+            {
+              "chunk_id": "PMC8905338_0057",
+              "document_id": "PMC8905338",
+              "section": "Vision and Outlook",
+              "score": 0.8332147598266602
+            },
+            {
+              "chunk_id": "PMC8905338_0005",
+              "document_id": "PMC8905338",
+              "section": "Background and Relevance",
+              "score": 0.6906954646110535
+            }
+          ]
+        },
+        {
+          "id": "q13",
+          "question": "嗜铬细胞瘤和交感性副神经节瘤手术后的长期结局如何？",
+          "latency_ms": 4024.04,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC10252063_0002",
+              "document_id": "PMC10252063",
+              "section": "1. Introduction",
+              "score": 0.9952803254127502
+            },
+            {
+              "chunk_id": "PMC10252063_0010",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.3. Survival Analysis",
+              "score": 0.9945909976959229
+            },
+            {
+              "chunk_id": "PMC10252063_0014",
+              "document_id": "PMC10252063",
+              "section": "5. Conclusions",
+              "score": 0.9926331639289856
+            },
+            {
+              "chunk_id": "PMC10252063_0009",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.2. Metastatic Recurrence",
+              "score": 0.9793599843978882
+            },
+            {
+              "chunk_id": "PMC10252063_0008",
+              "document_id": "PMC10252063",
+              "section": "3. Results > 3.2. Outcomes > 3.2.1. New Tumor Recurrence",
+              "score": 0.9534940719604492
+            }
+          ]
+        },
+        {
+          "id": "q14",
+          "question": "哪些临床特征提示 PPGL 转移风险较高？",
+          "latency_ms": 4335.08,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC12819074_0098",
+              "document_id": "PMC12819074",
+              "section": "Chapter II: Metastatic Pheochromocytoma and Paraganglioma > II-1 Methods for assessing metastasis risk > Evidence > A. Clinical Findings and Staging",
+              "score": 0.9063858985900879
+            },
+            {
+              "chunk_id": "PMC8905338_0011",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Clinical Presentations",
+              "score": 0.8440807461738586
+            },
+            {
+              "chunk_id": "PMC8090459_0010",
+              "document_id": "PMC8090459",
+              "section": "DISCUSSION OF THE RECOMMENDATIONS > 2. Biochemical tests of pheochromocytoma/paraganglioma > 2.2. Measurements of urinary dopamine and plasma 3-methoxytyramine are useful for the biochemical diagnosis of PPGLs with predominantly dopamine secretion and/or high risk for metastases (C)",
+              "score": 0.44790998101234436
+            },
+            {
+              "chunk_id": "PMC7729715_0001",
+              "document_id": "PMC7729715",
+              "section": "Abstract",
+              "score": 0.3724077343940735
+            },
+            {
+              "chunk_id": "PMC10335895_0001",
+              "document_id": "PMC10335895",
+              "section": "ABSTRACT",
+              "score": 0.31367015838623047
+            }
+          ]
+        },
+        {
+          "id": "q15",
+          "question": "妊娠期 PPGL 的诊断和影像检查有哪些特殊考虑？",
+          "latency_ms": 4007.06,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0006",
+              "document_id": "PMC7729715",
+              "section": "Pheochromocytoma/Paraganglioma in Pregnancy",
+              "score": 0.7688382267951965
+            },
+            {
+              "chunk_id": "PMC12819074_0065",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Evidence > C. Diagnosis > 2) Imaging diagnosis",
+              "score": 0.7560740113258362
+            },
+            {
+              "chunk_id": "PMC12819074_0136",
+              "document_id": "PMC12819074",
+              "section": "Chapter IV: Conclusions",
+              "score": 0.651378870010376
+            },
+            {
+              "chunk_id": "PMC12819074_0063",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-9 Diagnosis and treatment in pregnancy > Evidence > B. Major symptoms",
+              "score": 0.48675820231437683
+            },
+            {
+              "chunk_id": "PMC7729715_0007",
+              "document_id": "PMC7729715",
+              "section": "Pheochromocytoma/Paraganglioma in Pregnancy",
+              "score": 0.40620720386505127
+            }
+          ]
+        },
+        {
+          "id": "q16",
+          "question": "头颈部副神经节瘤应该如何进行影像评估？",
+          "latency_ms": 4521.41,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC7729715_0021",
+              "document_id": "PMC7729715",
+              "section": "Which Imaging Method to Whom?",
+              "score": 0.9091027975082397
+            },
+            {
+              "chunk_id": "PMC12819074_0052",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Statements",
+              "score": 0.8299582600593567
+            },
+            {
+              "chunk_id": "PMC12819074_0056",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-8 Diagnosis and treatment of head and neck paragangliomas > Evidence > C. Imaging",
+              "score": 0.7773198485374451
+            },
+            {
+              "chunk_id": "PMC8905338_0016",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Imaging",
+              "score": 0.6815828680992126
+            },
+            {
+              "chunk_id": "PMC12819074_0030",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-3 Imaging diagnosis > Evidence > F. Other imaging tests",
+              "score": 0.5809900164604187
+            }
+          ]
+        },
+        {
+          "id": "q17",
+          "question": "TotalSegmentator 原始 CT 模型可以分割多少种解剖结构？",
+          "latency_ms": 4106.67,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_arxiv_metadata_2208.05868_0001",
+              "document_id": "11_totalsegmentator_arxiv_metadata_2208.05868",
+              "section": "Abstract",
+              "score": 0.9921114444732666
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0025",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Reference",
+              "score": 0.9046186208724976
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0001",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator",
+              "score": 0.5788356065750122
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0029",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Class details",
+              "score": 0.3043087422847748
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0008",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Subtasks",
+              "score": 0.2784186601638794
+            }
+          ]
+        },
+        {
+          "id": "q18",
+          "question": "How can TotalSegmentator be installed and executed from the command line?",
+          "latency_ms": 3793.99,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0023",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Running v1",
+              "score": 0.972851574420929
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0012",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Other commands",
+              "score": 0.9606146812438965
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0011",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Other commands",
+              "score": 0.9266154766082764
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0017",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Python API",
+              "score": 0.911719024181366
+            },
+            {
+              "chunk_id": "11_totalsegmentator_official_readme_0010",
+              "document_id": "11_totalsegmentator_official_readme",
+              "section": "TotalSegmentator > Installation > Advanced settings",
+              "score": 0.8343432545661926
+            }
+          ]
+        },
+        {
+          "id": "q19",
+          "question": "继发性高血压患者怀疑 PPGL 时应该如何诊断和定位？",
+          "latency_ms": 4272.92,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 1.0,
+          "ndcg_at_5": 1.0,
+          "first_relevant_rank": 1,
+          "top_results": [
+            {
+              "chunk_id": "PMC8377944_0007",
+              "document_id": "PMC8377944",
+              "section": "Screening and imaging for pheochromocytoma and paraganglioma",
+              "score": 0.982521116733551
+            },
+            {
+              "chunk_id": "PMC8377944_0009",
+              "document_id": "PMC8377944",
+              "section": "Conclusion",
+              "score": 0.964939296245575
+            },
+            {
+              "chunk_id": "PMC8377944_0008",
+              "document_id": "PMC8377944",
+              "section": "Genetics of pheochromocytoma and paraganglioma",
+              "score": 0.9423333406448364
+            },
+            {
+              "chunk_id": "PMC10335895_0024",
+              "document_id": "PMC10335895",
+              "section": "CONCLUSIONS",
+              "score": 0.8097602725028992
+            },
+            {
+              "chunk_id": "PMC10335895_0003",
+              "document_id": "PMC10335895",
+              "section": "EPIDEMIOLOGY",
+              "score": 0.4848833382129669
+            }
+          ]
+        },
+        {
+          "id": "q20",
+          "question": "PPGL 有哪些常见临床表现，从症状到诊断的流程是什么？",
+          "latency_ms": 4318.71,
+          "recall_at_1": 0.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "reciprocal_rank": 0.5,
+          "ndcg_at_5": 0.6309297535714575,
+          "first_relevant_rank": 2,
+          "top_results": [
+            {
+              "chunk_id": "PMC8905338_0011",
+              "document_id": "PMC8905338",
+              "section": "Personalized Management: Molecular Cluster 1 > Clinical Presentations",
+              "score": 0.9450375437736511
+            },
+            {
+              "chunk_id": "PMC7729715_0001",
+              "document_id": "PMC7729715",
+              "section": "Abstract",
+              "score": 0.9403011202812195
+            },
+            {
+              "chunk_id": "PMC10335895_0001",
+              "document_id": "PMC10335895",
+              "section": "ABSTRACT",
+              "score": 0.9363760352134705
+            },
+            {
+              "chunk_id": "PMC12819074_0071",
+              "document_id": "PMC12819074",
+              "section": "Chapter I: Pheochromocytoma/paraganglioma > I-10 Diagnosis and treatment of PPGL in children > Evidence",
+              "score": 0.909389317035675
+            },
+            {
+              "chunk_id": "PMC12819074_0136",
+              "document_id": "PMC12819074",
+              "section": "Chapter IV: Conclusions",
+              "score": 0.749366044998169
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

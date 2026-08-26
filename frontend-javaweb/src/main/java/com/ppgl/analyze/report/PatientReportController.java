@@ -1,14 +1,17 @@
 package com.ppgl.analyze.report;
 
 import com.ppgl.analyze.auth.ApiResponse;
+import com.ppgl.analyze.auth.AuthenticatedUser;
+import com.ppgl.analyze.auth.UserRole;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,27 +25,35 @@ public class PatientReportController {
     }
 
     @GetMapping
-    public ApiResponse<List<ReportListItemResponse>> list(@RequestParam Long patientUserId) {
+    public ApiResponse<List<ReportListItemResponse>> list(@AuthenticationPrincipal Jwt jwt) {
+        Long patientUserId = patientId(jwt);
         return ApiResponse.ok("查询成功", reportService.patientList(patientUserId));
     }
 
     @GetMapping("/{taskId}")
-    public ApiResponse<ReportDetailResponse> detail(@PathVariable Long taskId, @RequestParam Long patientUserId) {
+    public ApiResponse<ReportDetailResponse> detail(@PathVariable Long taskId, @AuthenticationPrincipal Jwt jwt) {
+        Long patientUserId = patientId(jwt);
         return ApiResponse.ok("查询成功", reportService.patientDetail(taskId, patientUserId));
     }
 
     @GetMapping("/{taskId}/chat")
-    public ApiResponse<List<ReportChatResponse>> chatHistory(@PathVariable Long taskId, @RequestParam Long patientUserId) {
+    public ApiResponse<List<ReportChatResponse>> chatHistory(@PathVariable Long taskId, @AuthenticationPrincipal Jwt jwt) {
+        Long patientUserId = patientId(jwt);
         return ApiResponse.ok("查询成功", reportService.patientChatHistory(taskId, patientUserId));
     }
 
     @PostMapping("/{taskId}/chat")
     public ApiResponse<Map<String, String>> chat(
             @PathVariable Long taskId,
-            @RequestParam Long patientUserId,
+            @AuthenticationPrincipal Jwt jwt,
             @RequestBody ReportChatRequest request
     ) {
+        Long patientUserId = patientId(jwt);
         String reply = reportService.patientChat(taskId, patientUserId, request);
         return ApiResponse.ok("回复成功", Map.of("reply", reply));
+    }
+
+    private Long patientId(Jwt jwt) {
+        return AuthenticatedUser.from(jwt).require(UserRole.PATIENT).id();
     }
 }

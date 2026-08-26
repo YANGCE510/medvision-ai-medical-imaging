@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>上传病例</h2>
-        <p>上传 CT NIfTI 文件后，可直接启动腹部器官与肿瘤分割流程</p>
+        <p>上传 CT NIfTI 文件后，可独立启动全器官分割或 PPGL 肿瘤分割</p>
       </div>
     </div>
 
@@ -27,8 +27,10 @@
           />
 
           <el-upload
+            ref="uploadRef"
             drag
             action="#"
+            accept=".nii.gz"
             :auto-upload="false"
             :on-change="handleFileChange"
             class="upload-box"
@@ -57,18 +59,26 @@
           <div class="actions">
             <el-button
               type="primary"
-              :disabled="!selectedFile || uploading"
+              :disabled="uploading"
               :loading="uploading"
-              @click="uploadCase"
+              @click="handleUploadButton"
             >
-              上传病例
+              {{ selectedFile ? '上传病例' : '选择 CT 文件' }}
             </el-button>
             <el-button
-              :disabled="!caseId || segmenting"
-              :loading="segmenting"
-              @click="startCaseSegmentation"
+              :disabled="!caseId || organSegmenting"
+              :loading="organSegmenting"
+              @click="startOrganTask"
             >
-              开始智能分割
+              启动全器官分割
+            </el-button>
+            <el-button
+              type="warning"
+              :disabled="!caseId || ppglSegmenting"
+              :loading="ppglSegmenting"
+              @click="startPpglTask"
+            >
+              启动 PPGL 分割
             </el-button>
           </div>
         </el-card>
@@ -118,14 +128,21 @@ import { computed, ref } from 'vue'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { JETSON_TRT_SEGMENTATION_PARAMS, startSegmentation, uploadCT } from '../api/caseApi'
+import {
+  TOTALSEGMENTATOR_PARAMS,
+  startOrganSegmentation,
+  startPpglSegmentation,
+  uploadCT
+} from '../api/caseApi'
 
 const router = useRouter()
 
+const uploadRef = ref(null)
 const selectedFile = ref(null)
 const caseId = ref('')
 const uploading = ref(false)
-const segmenting = ref(false)
+const organSegmenting = ref(false)
+const ppglSegmenting = ref(false)
 const statusText = ref('')
 const uploadProgress = ref(0)
 const uploadMessage = ref('等待上传')
@@ -143,6 +160,14 @@ function handleFileChange(file) {
   uploadProgress.value = 0
   uploadMessage.value = '等待上传'
   uploadFailed.value = false
+}
+
+function handleUploadButton() {
+  if (selectedFile.value) {
+    uploadCase()
+    return
+  }
+  uploadRef.value?.$el?.querySelector('input[type="file"]')?.click()
 }
 
 async function uploadCase() {
@@ -173,17 +198,31 @@ async function uploadCase() {
   }
 }
 
-async function startCaseSegmentation() {
+async function startOrganTask() {
   if (!caseId.value) return
-  segmenting.value = true
+  organSegmenting.value = true
   try {
-    await startSegmentation(caseId.value, JETSON_TRT_SEGMENTATION_PARAMS)
-    ElMessage.success('已启动智能分割任务')
+    await startOrganSegmentation(caseId.value, TOTALSEGMENTATOR_PARAMS)
+    ElMessage.success('已启动 TotalSegmentator 全器官分割')
     router.push(`/cases/${caseId.value}`)
   } catch (err) {
-    ElMessage.error(err?.response?.data?.detail || '启动分割失败')
+    ElMessage.error(err?.response?.data?.detail || '启动全器官分割失败')
   } finally {
-    segmenting.value = false
+    organSegmenting.value = false
+  }
+}
+
+async function startPpglTask() {
+  if (!caseId.value) return
+  ppglSegmenting.value = true
+  try {
+    await startPpglSegmentation(caseId.value, { device: 'cuda:0' })
+    ElMessage.success('已启动 ProgressPatchV5 PPGL 肿瘤分割')
+    router.push(`/cases/${caseId.value}`)
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '启动 PPGL 分割失败')
+  } finally {
+    ppglSegmenting.value = false
   }
 }
 </script>

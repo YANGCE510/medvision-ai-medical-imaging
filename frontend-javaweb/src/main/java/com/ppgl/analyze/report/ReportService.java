@@ -90,9 +90,9 @@ public class ReportService {
 
     private ReportDetailResponse detailResponse(AnalysisResultRecord record, Long doctorId) {
         Long taskId = record.taskId();
-        String segmentationUrl = "/api/reports/" + taskId + "/segmentation?doctorId=" + doctorId;
-        String meshUrl = "/api/reports/" + taskId + "/mesh?doctorId=" + doctorId;
-        String meshManifestUrl = "/api/reports/" + taskId + "/mesh-manifest?doctorId=" + doctorId;
+        String segmentationUrl = "/api/reports/" + taskId + "/segmentation";
+        String meshUrl = "/api/reports/" + taskId + "/mesh";
+        String meshManifestUrl = "/api/reports/" + taskId + "/mesh-manifest";
         Path segmentationPath = segmentationPath(record);
         Path meshPath = meshPath(record);
         return new ReportDetailResponse(
@@ -115,7 +115,7 @@ public class ReportService {
                 readText(record.labelMapJsonPath()),
                 readText(record.reportMdPath()),
                 Files.isRegularFile(imagePath(record)),
-                "/api/reports/" + taskId + "/image?doctorId=" + doctorId,
+                "/api/reports/" + taskId + "/image",
                 false,
                 "",
                 Files.isRegularFile(segmentationPath),

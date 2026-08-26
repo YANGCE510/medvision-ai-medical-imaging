@@ -6,7 +6,8 @@
 
 如需完整运行 AI 推理，需要准备：
 
-- PPGL/GCPV5 肿瘤分割权重，例如放到 `ai-backend/ckpt/model_best_160.pth`
+- ProgressPatchV5 PPGL 肿瘤分割权重，默认放到 `ai-backend/progress_patch_v5/weights/model_best.pth`
+- 已纳入仓库的 ProgressPatchV5 推理代码位于 `ai-backend/progress_patch_v5/`
 - OTAFV2 相关 raw GCP、organ tune、adrenal specialist 权重，例如放到 `pipeline-otafv2/checkpoints/`
 - TotalSegmentator/nnUNet 权重和对应运行环境
 - 已授权、已脱敏的 `.nii.gz` 测试影像

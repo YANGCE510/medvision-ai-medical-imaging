@@ -2,37 +2,44 @@
   <div>
     <div class="page-header">
       <div>
-        <h2>三维重建</h2>
-        <p>病例编号：{{ caseId }}</p>
+        <h2>2D / 3D 联合阅片</h2>
+        <p>病例编号：{{ caseId }} · 三轴位切片与三维重建同屏查看</p>
       </div>
 
       <div class="header-actions">
         <el-button @click="reloadViewer">重新加载</el-button>
         <el-button @click="resetCamera">重置视角</el-button>
+        <el-button @click="goKnowledge">病例 RAG 问答</el-button>
         <el-button @click="goBack">返回病例详情</el-button>
       </div>
     </div>
 
     <div class="viewer-layout">
-      <section class="viewer-stage">
-        <div ref="canvasHost" class="canvas-host"></div>
+      <div class="viewer-workspace">
+        <TwoDViewer embedded class="mpr-pane" />
 
-        <div v-if="loading" class="state-layer">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>{{ loadingMessage }}</span>
-        </div>
+        <section class="viewer-stage">
+          <div class="stage-label">三维重建</div>
+          <div ref="canvasHost" class="canvas-host"></div>
 
-        <div v-if="errorMessage" class="state-layer error-layer">
-          <span>{{ errorMessage }}</span>
-          <el-button size="small" @click="reloadViewer">重试</el-button>
-        </div>
-      </section>
+          <div v-if="loading" class="state-layer">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>{{ loadingMessage }}</span>
+          </div>
+
+          <div v-if="errorMessage" class="state-layer error-layer">
+            <span>{{ errorMessage }}</span>
+            <el-button size="small" @click="reloadViewer">重试</el-button>
+          </div>
+        </section>
+      </div>
 
       <aside class="mesh-panel">
         <div class="panel-header">
           <div>
             <h3>结构列表</h3>
             <p>{{ visibleCount }} / {{ meshList.length }} 已显示</p>
+            <p v-if="overviewSize">概览模型 {{ formatFileSize(overviewSize) }} · 器官高清按需加载</p>
           </div>
         </div>
 
@@ -58,9 +65,17 @@
 
         <div class="quick-actions">
           <el-button size="small" @click="showDefaultMeshes">关键结构</el-button>
-          <el-button size="small" @click="showTumorOnly">只看肿瘤</el-button>
           <el-button size="small" @click="setAllMeshes(true)">全部显示</el-button>
           <el-button size="small" @click="setAllMeshes(false)">全部隐藏</el-button>
+          <el-button
+            size="small"
+            type="primary"
+            :loading="loadingAllHigh"
+            :disabled="highAvailableCount === 0 || highLoadedCount === highAvailableCount"
+            @click="loadAllHighResolutionMeshes"
+          >
+            一键全部高清
+          </el-button>
         </div>
 
         <el-scrollbar class="mesh-list">
@@ -79,6 +94,17 @@
               class="color-chip"
               :style="{ backgroundColor: meshColorCss(item.name, item.color) }"
             ></span>
+            <el-button
+              v-if="item.high_available"
+              class="high-mesh-button"
+              size="small"
+              :type="item.highLoaded ? 'success' : 'primary'"
+              :loading="item.highLoading"
+              :disabled="item.highLoaded"
+              @click="loadHighResolutionMesh(item)"
+            >
+              {{ item.highLoaded ? '已高清' : '高清' }}
+            </el-button>
           </div>
         </el-scrollbar>
       </aside>
@@ -92,9 +118,12 @@ import { useRoute, useRouter } from 'vue-router'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { Loading } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
-import { getMeshManifest, getMeshUrl } from '../api/caseApi'
+import { getMeshManifest, getMeshUrl, getOrganMeshUrl } from '../api/caseApi'
+import TwoDViewer from './TwoDViewer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,7 +134,9 @@ const loading = ref(false)
 const loadingMessage = ref('正在加载三维模型')
 const errorMessage = ref('')
 const meshList = ref([])
-const transparentMode = ref(true)
+const overviewSize = ref(0)
+const loadingAllHigh = ref(false)
+const transparentMode = ref(false)
 const surfaceStyle = ref('smooth')
 
 let renderer = null
@@ -117,13 +148,27 @@ let animationId = 0
 let modelRoot = null
 let referenceBackdrop = null
 let meshObjects = new Map()
+let overviewObjects = new Map()
+let highObjects = new Map()
 let meshNameLookup = new Map()
 let loadSequence = 0
 
 const visibleCount = computed(() => meshList.value.filter(item => item.visible).length)
+const highLoadedCount = computed(() => meshList.value.filter(item => item.highLoaded).length)
+const highAvailableCount = computed(() => meshList.value.filter(item => item.high_available).length)
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0)
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
 
 function goBack() {
   router.push(`/cases/${caseId}`)
+}
+
+function goKnowledge() {
+  router.push({ path: '/knowledge', query: { caseId } })
 }
 
 function displayName(name) {
@@ -194,6 +239,14 @@ function resolveMeshName(rawName) {
     meshNameLookup.get(name.replaceAll('_', '')) ||
     name
   )
+}
+
+function sourceMeshName(object) {
+  const ownName = String(object?.name || '')
+  if (/^mesh_\d+$/.test(ownName)) {
+    return object?.parent?.name || ownName
+  }
+  return ownName || object?.parent?.name || ''
 }
 
 function organKey(name) {
@@ -439,6 +492,8 @@ function clearModel() {
   }
   modelRoot = null
   meshObjects = new Map()
+  overviewObjects = new Map()
+  highObjects = new Map()
 }
 
 function fitCameraToModel() {
@@ -471,11 +526,28 @@ function fitCameraToModel() {
 }
 
 function setMeshVisibility(name, visible) {
-  const object = meshObjects.get(name) || meshObjects.get(gltfSafeName(name))
-  if (object) object.visible = Boolean(visible)
+  const key = String(name || '')
+  const overview = overviewObjects.get(key)
+  const high = highObjects.get(key)
+  const item = meshList.value.find(row => row.name === key)
+  if (overview) overview.visible = Boolean(visible) && !item?.highLoaded
+  if (high) high.visible = Boolean(visible) && Boolean(item?.highLoaded)
+  if (visible && modelRoot) modelRoot.visible = true
+}
+
+function forEachTrackedMesh(callback) {
+  const seen = new Set()
+  for (const object of meshObjects.values()) {
+    object?.traverse(child => {
+      if (!child.isMesh || seen.has(child.uuid)) return
+      seen.add(child.uuid)
+      callback(child)
+    })
+  }
 }
 
 function applyMeshVisibility() {
+  if (modelRoot) modelRoot.visible = true
   for (const item of meshList.value) {
     setMeshVisibility(item.name, item.visible)
   }
@@ -486,18 +558,13 @@ function setAllMeshes(visible) {
     item.visible = Boolean(visible)
     setMeshVisibility(item.name, item.visible)
   })
+  if (modelRoot) modelRoot.visible = Boolean(visible)
 }
 
 function showDefaultMeshes() {
+  if (modelRoot) modelRoot.visible = true
   meshList.value.forEach(item => {
     item.visible = Boolean(item.visible_by_default)
-    setMeshVisibility(item.name, item.visible)
-  })
-}
-
-function showTumorOnly() {
-  meshList.value.forEach(item => {
-    item.visible = String(item.name).startsWith('tumor:')
     setMeshVisibility(item.name, item.visible)
   })
 }
@@ -511,22 +578,20 @@ function makeMedicalMaterial(sourceMaterial, name) {
   const baseOpacity = transparentOpacityForMesh(name, sourceMaterial?.opacity ?? 1)
   const opacity = transparentMode.value ? baseOpacity : 1
   const color = colorForMeshName(name, sourceMaterial?.color)
-  const material = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshPhongMaterial({
     color,
-    metalness: 0,
-    roughness: isTumor ? 0.7 : 0.88,
+    specular: isTumor ? 0x3b1118 : 0x182631,
+    shininess: isTumor ? 24 : 18,
     emissive: color.clone(),
     emissiveIntensity: isTumor ? 0.08 : 0.025,
     opacity,
     transparent: opacity < 0.99,
     depthWrite: opacity >= 0.82 || isTumor,
-    side: THREE.DoubleSide,
-    flatShading: false,
-    polygonOffset: true,
-    polygonOffsetFactor: isTumor ? -1 : 0,
-    polygonOffsetUnits: isTumor ? -1 : 0
+    depthTest: true,
+    side: THREE.FrontSide,
+    flatShading: false
   })
-  material.toneMapped = false
+  material.toneMapped = true
   material.userData.baseOpacity = baseOpacity
   material.userData.isTumor = isTumor
   return material
@@ -538,11 +603,7 @@ function materialList(material) {
 }
 
 function applyTransparencyMode() {
-  const seen = new Set()
-  for (const object of meshObjects.values()) {
-    if (!object?.isMesh || seen.has(object.uuid)) continue
-    seen.add(object.uuid)
-
+  forEachTrackedMesh(object => {
     const isTumor = Boolean(object.userData?.isTumor)
     for (const material of materialList(object.material)) {
       const baseOpacity = isTumor ? 1 : Number(material.userData?.baseOpacity ?? material.opacity ?? 1)
@@ -552,19 +613,16 @@ function applyTransparencyMode() {
       material.depthWrite = !transparentMode.value || opacity >= 0.82 || isTumor
       material.needsUpdate = true
     }
-  }
+  })
 }
 
 function applySurfaceStyle() {
-  const seen = new Set()
-  for (const object of meshObjects.values()) {
-    if (!object?.isMesh || seen.has(object.uuid)) continue
-    seen.add(object.uuid)
+  forEachTrackedMesh(object => {
     for (const material of materialList(object.material)) {
-      material.flatShading = false
+      material.flatShading = surfaceStyle.value === 'detail'
       material.needsUpdate = true
     }
-  }
+  })
 }
 
 function withTimeout(promiseFactory, timeoutMs, message) {
@@ -627,6 +685,7 @@ async function loadGlb(url) {
 
   loadingMessage.value = '正在解析三维模型'
   const loader = new GLTFLoader()
+  loader.setMeshoptDecoder(MeshoptDecoder)
   return withTimeout(
     () => new Promise((resolve, reject) => {
       try {
@@ -638,6 +697,80 @@ async function loadGlb(url) {
     240000,
     '三维模型解析超时，模型面数可能过高，请使用较低精度模型'
   )
+}
+
+function prepareLoadedMesh(child, name) {
+  child.name = name
+  child.frustumCulled = false
+  child.userData.isTumor = String(name).startsWith('tumor') || String(name).startsWith('tumorgcp')
+  child.renderOrder = child.userData.isTumor ? 10 : 0
+  if (child.geometry && !child.geometry.attributes.normal) {
+    child.geometry.computeVertexNormals()
+  }
+  if (child.material) {
+    child.material = makeMedicalMaterial(child.material, name)
+  }
+}
+
+async function loadHighResolutionMesh(item, notify = true) {
+  if (item.highLoading || item.highLoaded || !modelRoot) return false
+  item.highLoading = true
+  try {
+    const gltf = await loadGlb(`${getOrganMeshUrl(caseId, item.label_id)}?t=${Date.now()}`)
+    const highMeshes = []
+    gltf.scene.traverse(child => {
+      if (!child.isMesh) return
+      prepareLoadedMesh(child, item.name)
+      child.visible = true
+      highMeshes.push(child)
+    })
+    if (!highMeshes.length) throw new Error('高清器官模型中没有网格')
+
+    const oldObject = overviewObjects.get(item.name)
+    if (oldObject) {
+      oldObject.parent?.remove(oldObject)
+      disposeObject(oldObject)
+      overviewObjects.delete(item.name)
+    }
+    gltf.scene.name = `high-${item.label_id}`
+    gltf.scene.userData.organName = item.name
+    gltf.scene.visible = Boolean(item.visible)
+    modelRoot.add(gltf.scene)
+    highObjects.set(item.name, gltf.scene)
+    meshObjects.set(item.name, gltf.scene)
+    meshObjects.set(gltfSafeName(item.name), gltf.scene)
+    item.highLoaded = true
+    applyTransparencyMode()
+    if (notify) ElMessage.success(`${displayName(item.name)}已切换为高清表面`)
+    return true
+  } catch (error) {
+    if (notify) ElMessage.error(error?.message || '高清器官模型加载失败')
+    return false
+  } finally {
+    item.highLoading = false
+  }
+}
+
+async function loadAllHighResolutionMeshes() {
+  if (loadingAllHigh.value) return
+  const pending = meshList.value.filter(item => item.high_available && !item.highLoaded)
+  if (!pending.length) return
+  loadingAllHigh.value = true
+  let loaded = 0
+  try {
+    for (let index = 0; index < pending.length; index += 3) {
+      const batch = pending.slice(index, index + 3)
+      const results = await Promise.all(batch.map(item => loadHighResolutionMesh(item, false)))
+      loaded += results.filter(Boolean).length
+    }
+    if (loaded === pending.length) {
+      ElMessage.success(`已加载全部 ${loaded} 个高清结构`)
+    } else {
+      ElMessage.warning(`已加载 ${loaded} / ${pending.length} 个高清结构`)
+    }
+  } finally {
+    loadingAllHigh.value = false
+  }
 }
 
 async function loadViewer() {
@@ -652,9 +785,12 @@ async function loadViewer() {
 
     const manifest = await getMeshManifest(caseId)
     if (sequence !== loadSequence) return
+    overviewSize.value = Number(manifest.overview_file_size || 0)
     meshList.value = (manifest.meshes || []).map(item => ({
       ...item,
-      visible: true
+      visible: item.visible_by_default !== false,
+      highLoading: false,
+      highLoaded: false
     }))
     indexMeshNames(meshList.value)
 
@@ -666,17 +802,12 @@ async function loadViewer() {
 
     modelRoot.traverse(child => {
       if (!child.isMesh) return
-      const name = resolveMeshName(child.name || child.parent?.name || '')
-      child.name = name
+      const name = resolveMeshName(sourceMeshName(child))
+      prepareLoadedMesh(child, name)
+      child.userData.organName = name
+      overviewObjects.set(name, child)
       meshObjects.set(name, child)
       meshObjects.set(gltfSafeName(name), child)
-      child.frustumCulled = false
-      child.userData.isTumor = String(name).startsWith('tumor') || String(name).startsWith('tumorgcp')
-      child.renderOrder = child.userData.isTumor ? 10 : 1
-      child.geometry?.computeVertexNormals()
-      if (child.material) {
-        child.material = makeMedicalMaterial(child.material, name)
-      }
     })
 
     scene.add(modelRoot)
@@ -747,6 +878,18 @@ onBeforeUnmount(() => {
   min-height: 680px;
 }
 
+.viewer-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(380px, 1.22fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 680px;
+}
+
+.mpr-pane {
+  min-width: 0;
+}
+
 .viewer-stage {
   position: relative;
   min-height: 680px;
@@ -755,6 +898,21 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: #020617;
   box-shadow: 0 18px 48px rgba(2, 6, 23, 0.18);
+}
+
+.stage-label {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 1;
+  padding: 5px 9px;
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 5px;
+  color: #e2e8f0;
+  background: rgba(2, 6, 23, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
 }
 
 .canvas-host {
@@ -880,6 +1038,12 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(15, 23, 42, 0.16);
 }
 
+.high-mesh-button {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 5px 8px;
+}
+
 @media (max-width: 980px) {
   .page-header {
     align-items: flex-start;
@@ -891,6 +1055,10 @@ onBeforeUnmount(() => {
   }
 
   .viewer-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .viewer-workspace {
     grid-template-columns: 1fr;
   }
 

@@ -2,22 +2,30 @@
 
 Unified local PPGL inference pipeline for the Jetson AGX Orin deployment.
 
+FastAPI is the internal AI service. It owns model execution, AI task workspaces, generated artifacts,
+RAG retrieval, and report generation. User login, roles, business records, and the public API belong to
+Spring Boot. The browser must use Spring Boot's `/api/ai/**` gateway instead of connecting to port 8000.
+
+The current Web PPGL task uses the repository-contained ProgressPatchV5 runtime at
+`ai-backend/progress_patch_v5/`. Its default checkpoint location is
+`ai-backend/progress_patch_v5/weights/model_best.pth`.
+
 The entrypoint is:
 
 ```bash
-source /path/to/anaconda3/etc/profile.d/conda.sh
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ppgl-gpu38
 
-python /path/to/PPGL/Code_ALL/run_case_pipeline.py \
+python ai-backend/run_case_pipeline.py \
   --case-id PPGL_Tr_0029 \
-  --image /path/to/PPGL/dataset/images/PPGL_Tr_0029.nii.gz \
+  --image demo-data/PPGL_Tr_0029.nii.gz \
   --mode jetson_fast
 ```
 
 Default output root:
 
 ```text
-/path/to/PPGL/Code_ALL/runs
+ai-backend/runs
 ```
 
 ## One-command web startup
@@ -25,11 +33,11 @@ Default output root:
 Start local MiniCPM chat, FastAPI backend, and Vite frontend:
 
 ```bash
-/path/to/PPGL/Code_ALL/start_ppgl_ai.sh
+./ai-backend/start_ppgl_ai.sh
 ```
 
 The script will prompt for `REPORT_OPENAI_BASE_URL` and `REPORT_OPENAI_API_KEY` if they are not already set.
-To avoid typing the online model settings every time, create `/path/to/PPGL/Code_ALL/.env`:
+To avoid typing the online model settings every time, create `ai-backend/.env`:
 
 ```bash
 REPORT_OPENAI_BASE_URL=http://127.0.0.1:2456
@@ -134,7 +142,7 @@ Prompt for the Web-system developer:
    - Jetson 只负责基于传入上下文进行本地模型推理并返回回答。
 ```
 
-Pipeline stages:
+Legacy OTAFV2 pipeline stages:
 
 1. GCPV5 tumor inference.
 2. TotalSegmentator anatomy inference.
@@ -161,11 +169,11 @@ preprocessing, APR, fusion, and reporting stay unchanged.
 Build the fixed ROI-160 engine:
 
 ```bash
-source /path/to/anaconda3/etc/profile.d/conda.sh
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ppgl-gpu38
-export LD_LIBRARY_PATH="/path/to/anaconda3/envs/ppgl-gpu38/lib:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 
-python /path/to/PPGL/Code_ALL/export_gcpv5_trt.py \
+python ai-backend/export_gcpv5_trt.py \
   --roi-size 160
 ```
 
@@ -175,23 +183,23 @@ first. The current Jetson image already has `trtexec` and system TensorRT Python
 Run a case with the TensorRT GCPV5 backend:
 
 ```bash
-python /path/to/PPGL/Code_ALL/run_case_pipeline.py \
+python ai-backend/run_case_pipeline.py \
   --case-id PPGL_Tr_0029 \
-  --image /path/to/PPGL/dataset/images/PPGL_Tr_0029.nii.gz \
+  --image demo-data/PPGL_Tr_0029.nii.gz \
   --mode jetson_fast \
   --gcp-backend trt \
-  --gcp-engine /path/to/PPGL/Code_ALL/engines/gcpv5/gcpv5_roi160_fp16.engine
+  --gcp-engine ai-backend/engines/gcpv5/gcpv5_roi160_fp16.engine
 ```
 
-Web API runs can pass `gcp_backend=trt` and `gcp_engine=/path/to/PPGL/Code_ALL/engines/gcpv5/gcpv5_roi160_fp16.engine`.
+Web API runs can pass `gcp_backend=trt` and `gcp_engine=ai-backend/engines/gcpv5/gcpv5_roi160_fp16.engine`.
 
 If TotalSegmentator masks have already been generated elsewhere, keep the new run self-contained while avoiding
 rerunning TotalSegmentator:
 
 ```bash
-python /path/to/PPGL/Code_ALL/run_case_pipeline.py \
+python ai-backend/run_case_pipeline.py \
   --case-id PPGL_Tr_0029 \
-  --image /path/to/PPGL/dataset/images/PPGL_Tr_0029.nii.gz \
+  --image demo-data/PPGL_Tr_0029.nii.gz \
   --mode jetson_fast \
-  --totalseg-existing-dir /path/to/PPGL/agent_cases/PPGL_Tr_0029/total/totalseg_total
+  --totalseg-existing-dir demo-data/totalseg/PPGL_Tr_0029
 ```

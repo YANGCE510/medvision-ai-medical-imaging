@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import urllib.error
@@ -83,7 +84,6 @@ REPORT_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string"},
         },
-        "report_markdown": {"type": "string"},
     },
     "required": [
         "case_id",
@@ -96,9 +96,82 @@ REPORT_SCHEMA: dict[str, Any] = {
         "follow_up_suggestions",
         "missing_information",
         "limitations",
-        "report_markdown",
     ],
 }
+
+RISK_LEVEL_LABELS = {
+    "low": "低风险",
+    "moderate": "中等风险",
+    "high": "高风险",
+    "uncertain": "风险不确定",
+}
+
+
+def normalize_report_text(value: Any, fallback: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text or fallback
+
+
+def report_bullets(report: dict[str, Any], field: str, fallback: str) -> str:
+    values = report.get(field, [])
+    if not isinstance(values, list):
+        values = []
+    items = [normalize_report_text(value, "") for value in values]
+    items = [value for value in items if value]
+    if not items:
+        items = [fallback]
+    return "\n".join(f"- {value}" for value in items)
+
+
+def render_report_markdown(report: dict[str, Any]) -> str:
+    metadata = report.get("_metadata", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
+    risk_code = str(report.get("overall_risk", "uncertain")).strip().lower()
+    risk_label = RISK_LEVEL_LABELS.get(risk_code, RISK_LEVEL_LABELS["uncertain"])
+    case_id = normalize_report_text(report.get("case_id"), "未提供")
+    generated_at = normalize_report_text(metadata.get("generated_at"), "未记录")
+    risk_summary = normalize_report_text(report.get("risk_summary"), "当前结构化指标不足以形成风险摘要。")
+
+    return "\n".join(
+        [
+            "# PPGL AI 影像辅助分析报告",
+            "",
+            "## 一、报告基本信息",
+            f"- 病例编号：{case_id}",
+            f"- 报告生成时间：{generated_at}",
+            "- 报告类型：基于自动分割结果的 AI 影像辅助分析",
+            f"- 总体风险分层：{risk_label}",
+            "",
+            "## 二、影像分析摘要",
+            risk_summary,
+            "",
+            "## 三、关键影像发现",
+            report_bullets(report, "key_findings", "当前结构化结果未提供明确的关键影像发现。"),
+            "",
+            "## 四、风险评估依据",
+            report_bullets(report, "risk_reasons", "当前结构化结果未提供明确的风险评估依据。"),
+            "",
+            "## 五、解剖毗邻关系",
+            report_bullets(report, "anatomic_relationships", "当前结构化结果未提供明确的解剖毗邻关系。"),
+            "",
+            "## 六、术前关注事项",
+            report_bullets(report, "surgical_considerations", "暂无可由自动分割结果直接支持的术前关注事项。"),
+            "",
+            "## 七、进一步检查与随访建议",
+            report_bullets(report, "follow_up_suggestions", "请结合原始 CT、临床表现及相关检查由医生评估。"),
+            "",
+            "## 八、当前缺失信息",
+            report_bullets(report, "missing_information", "未发现需要额外声明的缺失信息。"),
+            "",
+            "## 九、报告局限性",
+            report_bullets(report, "limitations", "自动分割及 AI 分析结果可能存在误差，需由医生复核原始 CT。"),
+            "",
+            "## 十、辅助分析声明",
+            "本报告由 AI 系统基于自动分割和结构化影像指标生成，仅供医生辅助参考，不能替代临床诊断、病理结论或最终治疗决策。",
+            "",
+        ]
+    )
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -124,7 +197,7 @@ def optional_file_path(value: str) -> Path:
 def normalize_base_url(value: str) -> str:
     base = value.strip().rstrip("/")
     if not base:
-        base = "https://api.openai.com/v1"
+        base = "http://127.0.0.1:11434/v1"
     if not base.endswith("/v1"):
         base = base + "/v1"
     return base
@@ -151,11 +224,11 @@ def clean_provider(value: str) -> str:
 
 
 def report_llm_provider() -> str:
-    return clean_provider(os.environ.get("REPORT_LLM_PROVIDER", "openai"))
+    return clean_provider(os.environ.get("REPORT_LLM_PROVIDER", "openai_compat"))
 
 
 def llm_provider() -> str:
-    return clean_provider(os.environ.get("CHAT_LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "openai")))
+    return clean_provider(os.environ.get("CHAT_LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "openai_compat")))
 
 
 def provider_for_scope(scope: str) -> str:
@@ -168,22 +241,22 @@ def use_chat_completions_api(provider: str | None = None) -> bool:
 
 def model_for_scope(scope: str) -> str:
     if scope == "report":
-        return os.environ.get("REPORT_OPENAI_MODEL", "gpt-5.5").strip() or "gpt-5.5"
-    return os.environ.get("CHAT_OPENAI_MODEL", os.environ.get("OPENAI_MODEL", "MiniCPM5-1B")).strip() or "MiniCPM5-1B"
+        return os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "ppgl-qwen3-32b-q4:latest")).strip() or "ppgl-qwen3-32b-q4:latest"
+    return os.environ.get("CHAT_OPENAI_MODEL", "ppgl-qwen3-32b-q4:latest").strip() or "ppgl-qwen3-32b-q4:latest"
 
 
 def base_url_for_scope(scope: str) -> str:
     if scope == "report":
-        return normalize_base_url(os.environ.get("REPORT_OPENAI_BASE_URL", "https://api.openai.com/v1"))
+        return normalize_base_url(os.environ.get("REPORT_OPENAI_BASE_URL", os.environ.get("CHAT_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")))
     return normalize_base_url(
-        os.environ.get("CHAT_OPENAI_BASE_URL", os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:18080/v1"))
+        os.environ.get("CHAT_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
     )
 
 
 def api_key_for_scope(scope: str) -> str:
     if scope == "report":
-        return normalize_api_key(os.environ.get("REPORT_OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", "")))
-    return normalize_api_key(os.environ.get("CHAT_OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", "EMPTY")))
+        return normalize_api_key(os.environ.get("REPORT_OPENAI_API_KEY", os.environ.get("CHAT_OPENAI_API_KEY", "ollama")))
+    return normalize_api_key(os.environ.get("CHAT_OPENAI_API_KEY", "ollama"))
 
 
 def timeout_for_scope(scope: str) -> float:
@@ -207,16 +280,19 @@ def auth_headers(api_key: str) -> dict[str, str]:
 
 def compact_case_context(case_dir: Path) -> dict[str, Any]:
     result_path = case_dir / "output" / "result.json"
-    if not result_path.exists():
-        raise FileNotFoundError(f"result.json not found: {result_path}")
+    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
+    if not result_path.exists() and not ppgl_result_path.exists():
+        raise FileNotFoundError(f"segmentation result not found: {case_dir / 'output'}")
 
-    result = read_json(result_path)
+    result = read_json(result_path) if result_path.exists() else {}
+    ppgl_result = read_json(ppgl_result_path) if ppgl_result_path.exists() else {}
     outputs = result.get("outputs", {})
     llm_context_path = optional_file_path(outputs.get("llm_context_path", ""))
     metrics_path = optional_file_path(outputs.get("clinical_metrics_path", ""))
 
     llm_context = read_json(llm_context_path) if llm_context_path.is_file() else {}
     metrics = read_json(metrics_path) if metrics_path.is_file() else {}
+    metrics.update(ppgl_result.get("metrics") or {})
 
     # Keep prompt payload structured and privacy-minimized. Do not include image data.
     return {
@@ -226,6 +302,8 @@ def compact_case_context(case_dir: Path) -> dict[str, Any]:
         "segmentation": {
             "label_count": result.get("segmentation", {}).get("label_count"),
             "tumor_priority": result.get("segmentation", {}).get("tumor_priority"),
+            "ppgl_model": ppgl_result.get("model", {}).get("name"),
+            "tumor_detected": ppgl_result.get("segmentation", {}).get("tumor_detected"),
         },
         "llm_context": {
             "schema_version": llm_context.get("schema_version"),
@@ -256,7 +334,7 @@ def build_prompt(context: dict[str, Any]) -> str:
         "2. 使用谨慎语言，例如“影像提示”“自动分割结果显示”“需结合原始 CT 复核”。\n"
         "3. 明确说明本报告不能替代医生诊断，不能给出最终治疗决策。\n"
         "4. 风险判断要解释原因，特别关注肿瘤体积、最大径、左右侧、与肾上腺/肾脏/主动脉/下腔静脉/肝脏的距离或重叠。\n"
-        "5. 输出必须严格符合 JSON Schema，report_markdown 字段内给出完整 Markdown 报告。\n\n"
+        "5. 输出必须严格符合 JSON Schema；系统会将结构化字段填入固定报告模板。\n\n"
         "结构化输入如下：\n"
         f"{json.dumps(context, ensure_ascii=False, indent=2)}"
     )
@@ -369,9 +447,9 @@ def build_minicpm_report_prompt(context: dict[str, Any]) -> str:
         "必须只输出一个合法 JSON 对象，不能输出 Markdown 代码围栏、解释文字或注释。\n"
         "JSON 必须包含这些字段：case_id, overall_risk, risk_summary, key_findings, risk_reasons, "
         "anatomic_relationships, surgical_considerations, follow_up_suggestions, missing_information, "
-        "limitations, report_markdown。\n"
+        "limitations。\n"
         "overall_risk 只能是 low、moderate、high、uncertain 之一。\n"
-        "所有数组最多 2 条，每条尽量不超过 45 个中文字符；report_markdown 控制在 350 个中文字符以内。\n"
+        "所有数组最多 2 条，每条尽量不超过 45 个中文字符。\n"
         "强调自动分割需医生结合原始 CT 复核，不能替代临床诊断。\n\n"
         "结构化输入：\n"
         f"{json.dumps(compact_context, ensure_ascii=False, indent=2)}"
@@ -442,7 +520,7 @@ def format_chat_history(history: list[dict[str, Any]]) -> str:
                 "问答模型是谁",
                 "当前 AI 问答调用的是本地",
                 "结构化 AI 报告生成仍使用云端强模型",
-                "接口地址是 http://127.0.0.1:18080/v1",
+                "接口地址是 http://127.0.0.1:11434/v1",
             )
         ):
             continue
@@ -986,14 +1064,14 @@ def call_openai_report(context: dict[str, Any]) -> dict[str, Any]:
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"OpenAI API error {exc.code}: {detail}") from exc
+        raise RuntimeError(f"LLM API error {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI API network error: {exc}") from exc
+        raise RuntimeError(f"LLM API network error: {exc}") from exc
 
     response_payload = json.loads(raw)
     text = extract_response_text(response_payload)
     if not text:
-        raise RuntimeError("OpenAI API returned an empty report")
+        raise RuntimeError("LLM API returned an empty report")
 
     report = json.loads(text)
     report["_metadata"] = {
@@ -1056,14 +1134,14 @@ def call_openai_text(prompt: str, max_output_tokens: int = 1600) -> tuple[str, d
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"OpenAI API error {exc.code}: {detail}") from exc
+        raise RuntimeError(f"LLM API error {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI API network error: {exc}") from exc
+        raise RuntimeError(f"LLM API network error: {exc}") from exc
 
     response_payload = json.loads(raw)
     text = extract_response_text(response_payload)
     if not text:
-        raise RuntimeError("OpenAI API returned an empty answer")
+        raise RuntimeError("LLM API returned an empty answer")
     metadata = {
         "provider": llm_provider(),
         "model": model,
@@ -1142,15 +1220,16 @@ def stream_openai_text(prompt: str, max_output_tokens: int = 1600):
                     yield delta
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"OpenAI API error {exc.code}: {detail}") from exc
+        raise RuntimeError(f"LLM API error {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI API network error: {exc}") from exc
+        raise RuntimeError(f"LLM API network error: {exc}") from exc
 
 
 def generate_ai_report(case_dir: Path) -> dict[str, Any]:
     context = compact_case_context(case_dir)
     report = call_openai_report(context)
     report.setdefault("case_id", case_dir.name)
+    report["report_markdown"] = render_report_markdown(report)
 
     output_dir = case_dir / "output"
     json_path = output_dir / "ai_report.json"
@@ -1202,9 +1281,6 @@ def direct_ai_report_answer(
 ) -> tuple[str, str, dict[str, Any]] | None:
     clean_question = str(question or "").strip()
     if not clean_question:
-        return None
-
-    if not is_minicpm_runtime("chat"):
         return None
 
     lower_question = clean_question.lower()
@@ -1298,8 +1374,8 @@ def direct_ai_report_answer(
     )
     if model_identity_intent:
         answer = (
-            f"当前 AI 问答调用的是本地 {model_for_scope('chat')}，"
-            f"接口地址是 {base_url_for_scope('chat')}；结构化 AI 报告生成仍使用云端强模型。"
+            f"当前 AI 问答调用的是 {model_for_scope('chat')}，接口地址是 {base_url_for_scope('chat')}；"
+            f"结构化 AI 报告调用的是 {model_for_scope('report')}，接口地址是 {base_url_for_scope('report')}。"
         )
         metadata = {
             "provider": llm_provider(),
@@ -1311,35 +1387,21 @@ def direct_ai_report_answer(
 
     context = compact_case_context(case_dir)
     metrics = context.get("selected_metrics", {}) or {}
-    risk = context.get("risk_assessment", {}) or {}
+    risk = context.get("risk_assessment", {}) or (context.get("llm_context", {}) or {}).get("risk_assessment", {}) or {}
     relations = metrics.get("organ_relations", {}) or {}
-    ivc = relations.get("inferior_vena_cava", {}) or {}
-    adrenal_right = relations.get("adrenal_gland_right", {}) or {}
-    liver = relations.get("liver", {}) or {}
-    kidney_right = relations.get("kidney_right", {}) or {}
-
-    level = risk.get("overall_level") or load_ai_report_summary(case_dir).get("overall_risk") or "uncertain"
-    level_text = {
-        "high": "高风险",
-        "moderate": "中等风险",
-        "low": "低风险",
-        "uncertain": "不确定",
-    }.get(str(level), str(level))
-
-    ivc_distance = ivc.get("min_surface_distance_mm")
-    ivc_overlap = ivc.get("overlap_voxels")
-    adrenal_overlap = adrenal_right.get("overlap_voxels")
-    liver_distance = liver.get("min_surface_distance_mm")
-    kidney_distance = kidney_right.get("min_surface_distance_mm")
-    volume = metrics.get("apr_tumor_volume_ml")
-    component_count = metrics.get("tumor_component_count")
     components = metrics.get("components", []) or []
-    bbox_size = components[0].get("bbox_size_mm") if components else None
-    max_diameter = None
-    if isinstance(bbox_size, list) and bbox_size:
-        numeric_bbox = [float(value) for value in bbox_size if isinstance(value, (int, float))]
-        if numeric_bbox:
-            max_diameter = max(numeric_bbox)
+
+    def numeric_value(value: Any) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
+
+    def format_number(value: float, decimals: int = 1) -> str:
+        return f"{value:.{decimals}f}".rstrip("0").rstrip(".")
 
     main_reason_intent = any(
         keyword in clean_question
@@ -1373,47 +1435,135 @@ def direct_ai_report_answer(
     if not (main_reason_intent or other_risk_intent or severity_intent or tumor_size_intent):
         return None
 
-    if tumor_size_intent:
-        bbox_text = ""
-        if isinstance(bbox_size, list) and bbox_size:
-            bbox_text = "，最大包围盒尺寸约 " + " x ".join(f"{float(value):.1f}" for value in bbox_size) + " mm"
-        max_text = f"，最大径约 {max_diameter:.1f} mm" if max_diameter is not None else ""
+    volume = numeric_value(metrics.get("apr_tumor_volume_ml"))
+    component_count = numeric_value(metrics.get("tumor_component_count"))
+    tumor_data_available = volume is not None or component_count is not None or bool(components) or bool(relations)
+    if not tumor_data_available:
         answer = (
-            f"按当前 APR 后肿瘤分割结果，肿瘤体积约 {volume} ml，"
-            f"保留肿瘤组件数为 {component_count} 个{bbox_text}{max_text}。"
-            "该数值来自自动分割结果，仍需结合原始 CT 和医生复核。"
+            "当前病例只有全器官分割，没有可用的肿瘤分割或病灶量化数据，"
+            "因此无法判断病灶大小、解剖风险或严重程度。请先完成肿瘤分割，并由医生结合原始 CT 复核。"
         )
+        metadata = {
+            "provider": llm_provider(),
+            "model": "structured-risk-rule",
+            "intent": "insufficient_tumor_data",
+            "source": "clinical_metrics",
+        }
+        return clean_question, answer, metadata
+
+    bbox_size = components[0].get("bbox_size_mm") if components and isinstance(components[0], dict) else None
+    numeric_bbox = [numeric_value(value) for value in bbox_size] if isinstance(bbox_size, list) else []
+    numeric_bbox = [value for value in numeric_bbox if value is not None]
+    max_diameter = max(numeric_bbox) if numeric_bbox else None
+
+    relation_labels = {
+        "adrenal_gland_left": "左肾上腺",
+        "adrenal_gland_right": "右肾上腺",
+        "aorta": "主动脉",
+        "inferior_vena_cava": "下腔静脉",
+        "kidney_left": "左肾",
+        "kidney_right": "右肾",
+        "liver": "肝脏",
+        "pancreas": "胰腺",
+        "portal_vein_and_splenic_vein": "门静脉及脾静脉",
+        "spleen": "脾脏",
+    }
+    ranked_relations = []
+    for relation_key, relation_value in relations.items():
+        if not isinstance(relation_value, dict):
+            continue
+        distance = numeric_value(relation_value.get("min_surface_distance_mm"))
+        overlap = numeric_value(relation_value.get("overlap_voxels"))
+        contact = bool(relation_value.get("contact_or_overlap")) or bool(overlap and overlap > 0)
+        if distance is None and overlap is None and not contact:
+            continue
+        ranked_relations.append(
+            (
+                0 if contact else 1,
+                distance if distance is not None else float("inf"),
+                str(relation_key),
+                relation_value,
+                distance,
+                overlap,
+            )
+        )
+    ranked_relations.sort(key=lambda item: item[:3])
+
+    relation_statements = []
+    for _, _, relation_key, relation_value, distance, overlap in ranked_relations[:3]:
+        label = relation_labels.get(relation_key) or relation_value.get("name") or relation_key
+        details = []
+        if distance is not None:
+            details.append(f"最小表面距离约 {format_number(distance)} mm")
+        if overlap is not None and overlap > 0:
+            details.append(f"重叠体素约 {format_number(overlap, 0)} 个")
+        if details:
+            relation_statements.append(f"病灶与{label}{'，'.join(details)}")
+
+    side_value = str(metrics.get("tumor_side_by_nearest_kidney") or "").strip().lower()
+    side_text = {
+        "left": "左侧",
+        "right": "右侧",
+        "左": "左侧",
+        "右": "右侧",
+        "左侧": "左侧",
+        "右侧": "右侧",
+    }.get(side_value)
+
+    level = str(risk.get("overall_level") or "").strip().lower()
+    level_text = {
+        "high": "高风险",
+        "moderate": "中等风险",
+        "low": "低风险",
+        "uncertain": "风险不确定",
+    }.get(level)
+
+    size_statements = []
+    if volume is not None:
+        size_statements.append(f"肿瘤体积约 {format_number(volume, 2)} ml")
+    if component_count is not None:
+        size_statements.append(f"肿瘤组件数为 {format_number(component_count, 0)} 个")
+    if numeric_bbox:
+        size_statements.append("包围盒尺寸约 " + " × ".join(format_number(value) for value in numeric_bbox) + " mm")
+    if max_diameter is not None:
+        size_statements.append(f"最大径约 {format_number(max_diameter)} mm")
+    if side_text:
+        size_statements.append(f"病灶更接近{side_text}肾脏")
+
+    if tumor_size_intent:
+        if size_statements:
+            answer = "按当前肿瘤分割结果，" + "，".join(size_statements) + "。该数值仍需结合原始 CT 由医生复核。"
+        else:
+            answer = "当前已有肿瘤相关结果，但没有可用的体积或尺寸数值，无法回答病灶大小。"
         intent = "tumor_size_metric"
     elif main_reason_intent:
-        answer = (
-            f"高风险的主要原因是病灶和关键血管、邻近器官关系太近。"
-            f"第一，病灶与下腔静脉最小距离为 {ivc_distance} mm，"
-            f"并有约 {ivc_overlap} 个重叠体素，这是最核心的风险依据；"
-            f"第二，病灶与右肾上腺重叠体素约 {adrenal_overlap} 个，提示来源区域和边界关系紧密；"
-            f"第三，病灶距肝脏约 {liver_distance} mm、距右肾约 {kidney_distance} mm，"
-            "说明局部解剖空间比较拥挤。这里的高风险主要指解剖毗邻和手术复杂度风险，"
-            "需要结合原始 CT、增强期影像和临床资料复核。"
-        )
+        if level_text:
+            answer = f"当前结构化风险分层为{level_text}。"
+        else:
+            answer = "当前结构化数据没有提供有效的总体风险分层，不能判断属于高、中或低风险。"
+        if relation_statements:
+            answer += "可核对的主要解剖依据包括：" + "；".join(relation_statements) + "。"
+        else:
+            answer += "当前也没有可用的病灶毗邻距离或重叠数据。"
+        answer += "风险结论需结合原始 CT、增强期影像和临床资料由医生复核。"
         intent = "main_risk_reasons"
     elif other_risk_intent:
-        answer = (
-            "除了下腔静脉毗邻风险外，还需要关注这些风险点："
-            f"1. 右肾上腺区边界关系紧密，重叠体素约 {adrenal_overlap} 个；"
-            f"2. 病灶距肝脏约 {liver_distance} mm，术前需要确认是否存在真实贴近或分割边界误差；"
-            f"3. 病灶距右肾约 {kidney_distance} mm，需关注肾门和肾周操作空间；"
-            "4. AI 分割结果只能作为辅助，边界、血管侵犯和良恶性判断仍需医生结合原始影像复核。"
-        )
+        if relation_statements:
+            answer = "当前可量化的其他解剖关注点包括：" + "；".join(relation_statements) + "。"
+        else:
+            answer = "当前结构化数据没有提供更多可量化的病灶毗邻关系，无法补充其他风险点。"
+        answer += "这些指标不能单独判断血管侵犯、良恶性或最终手术风险，需由医生复核原始影像。"
         intent = "additional_risk_points"
     else:
-        answer = (
-            f"按当前 AI 影像辅助评估，这个病例属于{level_text}。"
-            f"主要原因是病灶与下腔静脉最小距离为 {ivc_distance} mm，"
-            f"重叠体素约 {ivc_overlap} 个，并且与右肾上腺关系密切"
-            f"（重叠体素约 {adrenal_overlap} 个）；同时距肝脏约 {liver_distance} mm、"
-            f"距右肾约 {kidney_distance} mm。"
-            f"但病灶体积约 {volume} ml、最大径约 18 mm，这里的{level_text}主要指解剖毗邻和手术复杂度风险，"
-            "不等同于恶性或生存期判断，需结合原始 CT 和临床资料由医生复核。"
-        )
+        if not level_text:
+            answer = "当前结构化数据没有提供有效的总体风险分层，因此无法判断风险高低。"
+        else:
+            answer = f"按当前结构化影像指标，这个病例的风险分层为{level_text}。"
+        if relation_statements:
+            answer += "主要解剖依据包括：" + "；".join(relation_statements) + "。"
+        if size_statements:
+            answer += "病灶量化信息为：" + "，".join(size_statements) + "。"
+        answer += "这里的风险仅指影像解剖和手术复杂度风险，不等同于恶性或生存期判断，需由医生结合原始 CT 和临床资料复核。"
         intent = "risk_level"
     metadata = {
         "provider": llm_provider(),

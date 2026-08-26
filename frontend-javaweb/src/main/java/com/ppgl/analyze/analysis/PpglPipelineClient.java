@@ -34,15 +34,18 @@ public class PpglPipelineClient {
     private final ObjectMapper objectMapper;
     private final String baseUrl;
     private final Duration timeout;
+    private final String internalApiKey;
 
     public PpglPipelineClient(
             ObjectMapper objectMapper,
             @Value("${ppgl.pipeline.base-url}") String baseUrl,
-            @Value("${ppgl.pipeline.timeout-minutes:30}") long timeoutMinutes
+            @Value("${ppgl.pipeline.timeout-minutes:30}") long timeoutMinutes,
+            @Value("${ppgl.internal.api-key}") String internalApiKey
     ) {
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.timeout = Duration.ofMinutes(Math.max(1, timeoutMinutes));
+        this.internalApiKey = internalApiKey;
     }
 
     public ComputeNodeStatusResponse status() {
@@ -340,6 +343,7 @@ public class PpglPipelineClient {
         HttpURLConnection connection = (HttpURLConnection) URI.create(baseUrl + path).toURL().openConnection();
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(0);
+        connection.setRequestProperty("X-PPGL-Internal-Key", internalApiKey);
         return connection;
     }
 
@@ -362,7 +366,7 @@ public class PpglPipelineClient {
 
     private InterfaceProbeResult probeInterface() {
         try {
-            HttpURLConnection connection = (HttpURLConnection) URI.create(baseUrl + "/openapi.json").toURL().openConnection();
+            HttpURLConnection connection = open("/openapi.json");
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(PORT_TIMEOUT_MS);
             connection.setReadTimeout(INTERFACE_TIMEOUT_MS);

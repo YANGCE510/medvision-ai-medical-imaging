@@ -1,5 +1,7 @@
 package com.ppgl.analyze.viewer;
 
+import com.ppgl.analyze.auth.AuthenticatedUser;
+import com.ppgl.analyze.auth.UserRole;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,8 +37,8 @@ public class CaseViewerController {
     }
 
     @GetMapping("/{caseId}/viewer-files")
-    public CaseViewerFilesResponse viewerFiles(@PathVariable String caseId) {
-        Path caseDir = caseDir(caseId);
+    public CaseViewerFilesResponse viewerFiles(@PathVariable String caseId, @AuthenticationPrincipal Jwt jwt) {
+        Path caseDir = caseDir(requireDoctor(jwt), caseId);
         if (!Files.isRegularFile(caseDir.resolve("image.nii.gz"))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "缺少原始 CT 图像，无法进行 overlay 显示。");
         }
@@ -49,13 +53,18 @@ public class CaseViewerController {
     }
 
     @GetMapping("/{caseId}/files/{fileName}")
-    public ResponseEntity<Resource> file(@PathVariable String caseId, @PathVariable String fileName) throws IOException {
+    public ResponseEntity<Resource> file(
+            @PathVariable String caseId,
+            @PathVariable String fileName,
+            @AuthenticationPrincipal Jwt jwt
+    ) throws IOException {
+        Long doctorId = requireDoctor(jwt);
         // Only expose the two viewer files and reject path traversal attempts.
         if (!ALLOWED_FILES.contains(fileName) || fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件名不合法。");
         }
 
-        Path file = caseDir(caseId).resolve(fileName).normalize();
+        Path file = caseDir(doctorId, caseId).resolve(fileName).normalize();
         if (!file.startsWith(caseRootDir) || !Files.isRegularFile(file)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "文件不存在。");
         }
@@ -70,14 +79,18 @@ public class CaseViewerController {
                 .body(resource);
     }
 
-    private Path caseDir(String caseId) {
+    private Path caseDir(Long doctorId, String caseId) {
         if (!CASE_ID_PATTERN.matcher(caseId).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "caseId 不合法。");
         }
-        Path caseDir = caseRootDir.resolve(caseId).normalize();
+        Path caseDir = caseRootDir.resolve(String.valueOf(doctorId)).resolve(caseId).normalize();
         if (!caseDir.startsWith(caseRootDir)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "caseId 不合法。");
         }
         return caseDir;
+    }
+
+    private Long requireDoctor(Jwt jwt) {
+        return AuthenticatedUser.from(jwt).require(UserRole.DOCTOR).id();
     }
 }

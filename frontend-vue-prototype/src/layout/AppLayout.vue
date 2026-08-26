@@ -10,12 +10,12 @@
       </div>
 
       <el-menu
-        router
-        :default-active="route.path"
+        :default-active="activeMenu"
         class="side-menu"
         background-color="transparent"
         text-color="#b8c3cf"
         active-text-color="#ffffff"
+        @select="handleMenuSelect"
       >
         <el-menu-item index="/dashboard">
           <el-icon><DataBoard /></el-icon>
@@ -32,17 +32,22 @@
           <span>上传病例</span>
         </el-menu-item>
 
-        <el-menu-item index="/cases/demo-case">
+        <el-menu-item index="/knowledge">
+          <el-icon><Reading /></el-icon>
+          <span>PPGL 医学知识库</span>
+        </el-menu-item>
+
+        <el-menu-item index="case-result">
           <el-icon><View /></el-icon>
           <span>分割结果示例</span>
         </el-menu-item>
 
-        <el-menu-item index="/cases/demo-case/3d">
+        <el-menu-item index="case-3d">
           <el-icon><DataAnalysis /></el-icon>
-          <span>三维重建示例</span>
+          <span>2D / 3D 联合阅片</span>
         </el-menu-item>
 
-        <el-menu-item index="/cases/demo-case/report">
+        <el-menu-item index="case-report">
           <el-icon><Document /></el-icon>
           <span>AI 辅助报告</span>
         </el-menu-item>
@@ -53,7 +58,7 @@
       <el-header class="topbar">
         <div class="topbar-title">
           <strong>PPGL 术前 CT 智能分割与辅助分析系统</strong>
-          <span>Segmentation / 3D Reconstruction / AI Report</span>
+          <span>Segmentation / 3D Reconstruction / RAG / AI Report</span>
         </div>
         <div class="user-info">
           <span class="status-dot"></span>
@@ -69,17 +74,49 @@
 </template>
 
 <script setup>
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import {
   DataAnalysis,
   DataBoard,
   Document,
   FolderOpened,
+  Reading,
   UploadFilled,
   View
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
+
+const activeMenu = computed(() => {
+  if (route.path.endsWith('/3d')) return 'case-3d'
+  if (route.path.endsWith('/report')) return 'case-report'
+  if (/^\/cases\/[^/]+(?:\/2d)?$/.test(route.path)) return 'case-result'
+  return route.path
+})
+
+function handleMenuSelect(index) {
+  const caseTargets = {
+    'case-result': '',
+    'case-3d': '/3d',
+    'case-report': '/report'
+  }
+
+  if (Object.prototype.hasOwnProperty.call(caseTargets, index)) {
+    const caseId = route.params.caseId
+    if (!caseId || caseId === 'demo-case') {
+      ElMessage.warning('未选择任何病例，请选择一个病例')
+      router.push('/cases')
+      return
+    }
+    router.push(`/cases/${encodeURIComponent(String(caseId))}${caseTargets[index]}`)
+    return
+  }
+
+  router.push(index)
+}
 </script>
 
 <style scoped>
