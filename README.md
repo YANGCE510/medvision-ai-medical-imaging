@@ -1,4 +1,24 @@
-# PPGL Assist AI Medical Imaging
+<h1 align="center">PPGL Assist AI Medical Imaging</h1>
+
+<p align="center">
+  面向 PPGL 场景的智能影像辅助分析系统
+</p>
+
+<p align="center">
+  <b>Vue</b> · <b>Spring Boot</b> · <b>FastAPI</b> · <b>Medical Imaging</b> · <b>RAG</b> · <b>AI Report</b>
+</p>
+
+<p align="center">
+  <a href="#项目亮点">项目亮点</a> ·
+  <a href="#系统架构">系统架构</a> ·
+  <a href="#核心功能">核心功能</a> ·
+  <a href="#快速启动">快速启动</a> ·
+  <a href="#安全设计">安全设计</a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/cover.png" alt="PPGL Assist AI Medical Imaging cover" width="920">
+</p>
 
 PPGL Assist 是一个面向嗜铬细胞瘤/副神经节瘤（PPGL）场景的智能影像辅助分析系统。项目以 CT 病例为入口，整合病例管理、AI 分割推理、三维/二维查看、结构化 AI 报告、RAG 医学知识问答和权限控制，目标是展示一个完整的 AI 医疗影像应用开发闭环。
 
