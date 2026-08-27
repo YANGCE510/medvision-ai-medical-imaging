@@ -30,7 +30,7 @@ PPGL Assist 是一个面向嗜铬细胞瘤/副神经节瘤（PPGL）场景的智
 - 完整 AI 应用链路：Vue 前端、Spring Boot 业务后端、FastAPI AI 服务分层协作。
 - 医疗数据访问控制：Spring Boot 统一处理登录、JWT、角色校验和病例权限，浏览器不直接访问 AI 服务。
 - AI 能力解耦：全器官分割与 PPGL 肿瘤分割拆分为独立能力，便于替换模型和扩展推理流程。
-- 自研模型接入：已将 ProgressPatchV5 推理代码纳入仓库，支持通过相对路径加载权重。
+- 自研模型接入：已将 PPGL 肿瘤分割推理代码纳入仓库，支持通过相对路径加载权重。
 - RAG 问答与报告生成：支持医学知识库检索、病例上下文组装、报告生成和报告问答。
 - 求职展示友好：代码仓库排除了权重、医学影像、运行结果、日志、构建产物和私有配置。
 
@@ -173,7 +173,7 @@ http://127.0.0.1:5173/
 
 公开仓库不包含模型权重、真实医学影像和运行输出。完整运行推理前，需要在本地准备以下资产：
 
-- ProgressPatchV5 PPGL 分割权重，默认位置：`ai-backend/progress_patch_v5/weights/model_best.pth`
+- PPGL 分割权重，默认位置：`ai-backend/progress_patch_v5/weights/model_best.pth`。该权重暂不随代码仓库发布，后续将上传至 Hugging Face，并在此处补充下载链接。
 - OTAFV2 / nnUNet / TotalSegmentator 所需权重和运行环境
 - 已授权、已脱敏的 `.nii.gz` 测试影像
 
