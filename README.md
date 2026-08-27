@@ -1,132 +1,213 @@
 <h1 align="center">PPGL Assist AI Medical Imaging</h1>
 
 <p align="center">
-  面向 PPGL 场景的智能影像辅助分析系统
+  面向嗜铬细胞瘤与副神经节瘤场景的智能影像辅助分析系统
 </p>
 
 <p align="center">
-  <b>Vue</b> · <b>Spring Boot</b> · <b>FastAPI</b> · <b>Medical Imaging</b> · <b>RAG</b> · <b>AI Report</b>
+  <b>CT 病例管理</b> · <b>全器官分割</b> · <b>PPGL 肿瘤分割</b> · <b>2D/3D 阅片</b> · <b>AI 报告</b> · <b>医学知识问答</b>
 </p>
 
 <p align="center">
-  <a href="#项目亮点">项目亮点</a> ·
-  <a href="#系统架构">系统架构</a> ·
-  <a href="#核心功能">核心功能</a> ·
-  <a href="#快速启动">快速启动</a> ·
-  <a href="#部署规则">部署规则</a> ·
-  <a href="#安全设计">安全设计</a>
+  <a href="#项目简介">项目简介</a> ·
+  <a href="#主要功能">主要功能</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#使用说明">使用说明</a> ·
+  <a href="#模型与数据">模型与数据</a> ·
+  <a href="#部署与安全">部署与安全</a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/cover.png" alt="PPGL Assist AI Medical Imaging cover" width="920">
+  <img src="docs/assets/cover.png" alt="PPGL Assist 系统封面" width="920">
 </p>
 
-PPGL Assist 是一个面向嗜铬细胞瘤/副神经节瘤（PPGL）场景的智能影像辅助分析系统。项目以 CT 病例为入口，整合病例管理、AI 分割推理、三维/二维查看、结构化 AI 报告、RAG 医学知识问答和权限控制，构建完整的 AI 医疗影像应用闭环。
+## 项目简介
 
-> 本项目用于科研原型验证，不提供临床诊断结论，不包含真实临床影像、患者隐私数据或模型权重。
+PPGL Assist 以 CT 病例为入口，为 PPGL 相关影像分析提供一套完整的使用流程：上传影像、分别执行全器官分割和 PPGL 肿瘤分割、查看二维与三维结果、读取量化指标，并生成结构化 AI 辅助报告。系统还提供医学知识检索与病例报告问答功能。
 
-## 项目亮点
+系统的主要操作界面面向医生使用。患者端提供已审核报告查看与反馈原型，管理员角色用于权限区分。
 
-- 完整 AI 应用链路：Vue 前端、Spring Boot 业务后端、FastAPI AI 服务分层协作。
-- 医疗数据访问控制：Spring Boot 统一处理登录、JWT、角色校验和病例权限，浏览器不直接访问 AI 服务。
-- AI 能力解耦：全器官分割与 PPGL 肿瘤分割拆分为独立能力，便于替换模型和扩展推理流程。
-- 自研模型接入：已将 PPGL 肿瘤分割推理代码纳入仓库，支持通过相对路径加载权重。
-- 独立 3D 可视化：全器官与 PPGL 肿瘤均生成独立 mesh，可联合加载；历史病例会按需补生成肿瘤 mesh。
-- RAG 问答与报告生成：支持医学知识库检索、病例上下文组装、报告生成和报告问答。
-- 公开仓库边界：代码仓库排除了权重、医学影像、运行结果、日志、构建产物和私有配置。
+> 本项目用于科研与教学场景的原型验证，不提供临床诊断结论。公开仓库不包含真实临床影像、患者隐私数据或模型权重。
 
-## 系统架构
+## 主要功能
 
-```text
-Vue Web（5173）
-  └─ 负责页面展示、交互和调用 Spring Boot 公开 API
-       ↓ /api
-Spring Boot（8080）
-  ├─ 唯一公开业务后端
-  ├─ 登录、JWT、角色权限、病例权限、业务数据
-  └─ AI 网关：使用内部密钥和受信用户上下文调用 FastAPI
-       ↓ /api（建议仅内网/本机访问）
-FastAPI（8000）
-  └─ 负责 AI 能力：全器官分割、PPGL 分割、指标、三维产物、RAG、AI 报告
-```
+| 功能 | 使用说明 |
+| --- | --- |
+| 病例管理 | 上传 CT、查看病例列表与详情、修改病例编号、删除病例，并可重新执行失败的分割任务。 |
+| 全器官分割 | 对 CT 中的主要解剖结构进行自动分割，生成结构标签、体积指标和三维模型。 |
+| PPGL 肿瘤分割 | 使用独立的 PPGL 分割模型生成肿瘤掩膜、体积、最大径和三维肿瘤模型。该任务不依赖全器官分割结果。 |
+| 2D/3D 阅片 | 在二维切片中查看 CT 与分割叠加结果，在三维视图中独立或联合显示器官和 PPGL 肿瘤。 |
+| AI 辅助报告 | 根据病例分割结果和量化指标，按照固定结构生成辅助分析报告。 |
+| 报告问答 | 围绕当前病例报告继续提问，并通过流式输出查看回答。 |
+| 医学知识问答 | 从本地 PPGL 医学知识库检索相关资料，并结合检索结果回答问题。 |
+| 访问控制 | 通过登录认证、角色权限和病例归属限制病例、影像与报告的访问范围。 |
 
-职责边界：
+全器官分割和 PPGL 肿瘤分割是两个独立功能。使用者可以只运行其中一个，也可以全部运行后进行联合阅片。
 
-- Vue：只做用户界面，不保存密钥，不直接操作病例文件。
-- Spring Boot：作为唯一公开业务入口，负责鉴权、权限、病例与报告业务。
-- FastAPI：作为内部 AI 服务，负责推理、RAG、报告生成和 AI 文件产物管理。
+## 典型使用流程
 
-## 核心功能
+1. 使用医生账号登录系统。
+2. 上传 `.nii.gz` 格式的 CT 影像并创建病例。
+3. 在病例详情页按需启动“全器官分割”或“PPGL 肿瘤分割”。
+4. 等待任务状态显示“全器官分割完成”或“PPGL：肿瘤分割完成”。
+5. 查看分割指标、二维切片和三维模型；两个任务均完成后可进行联合阅片。
+6. 生成结构化 AI 辅助报告，并围绕报告内容继续问答。
 
-- 医生/患者/管理员登录与角色区分
-- CT 病例上传、病例列表、病例详情
-- 病例删除、编号修改，以及失败任务的强制重试
-- 病例权限隔离与文件网关访问
-- 全器官分割任务
-- PPGL 肿瘤分割任务
-- 分割结果指标展示
-- 2D/3D 医学影像查看
-- 3D 结构中文显示与肿瘤优先展示
-- AI 辅助报告生成
-- 报告问答与流式输出
-- RAG 医学知识库检索与评估样例
-- 患者微信小程序原型
+## 运行前准备
 
-## 目录结构
+推荐在 Linux 环境中运行。完整 AI 推理建议使用支持 CUDA 的 NVIDIA GPU。
 
-```text
-.
-├── frontend-vue-prototype/  # Vue 3 + Vite Web 前端
-├── frontend-javaweb/        # Spring Boot 业务后端、静态页面、小程序原型
-├── ai-backend/              # FastAPI AI 服务、RAG、报告、全器官与 PPGL 分割推理
-├── envs/                    # Conda 推理环境配置
-├── docs/                    # 项目状态说明
-├── WEIGHTS_AND_DATA.md      # 权重和数据放置说明
-└── .gitignore               # 排除隐私数据、权重、日志和构建产物
-```
+需要提前安装：
 
-## 环境要求
-
-- JDK 21
+- JDK 21（必须是 JDK，不能只有 JRE）
 - Maven
-- MySQL
-- Node.js / npm
-- Conda / Python 3.10
-- PyTorch、MONAI、nnUNetv2、nibabel、SimpleITK、scikit-image 等推理依赖
+- MySQL 8.x
+- Node.js 20 或更高版本、npm
+- Conda
+- Ollama，或其他兼容 OpenAI API 的本地大模型服务
 
-GPU 推理环境可参考：
+可以先检查基础环境：
+
+```bash
+java -version
+javac -version
+mvn -version
+mysql --version
+node --version
+npm --version
+conda --version
+ollama --version
+```
+
+完整推理还需要：
+
+- PPGL 分割权重
+- 全器官分割所需权重
+- 已授权并完成脱敏的 CT 测试影像
+
+## 快速开始
+
+以下命令以 Ubuntu/Linux 和单机运行环境为例。
+
+### 1. 获取项目
+
+```bash
+git clone https://github.com/ChangjinHe2000/ppgl-assist-ai-medical-imaging.git
+cd ppgl-assist-ai-medical-imaging
+```
+
+### 2. 安装项目依赖
+
+创建 Python 推理环境：
 
 ```bash
 conda env create -f envs/environment.inference.yml
 conda activate ppgl
 ```
 
-CPU/Jetson CPU 环境可参考：
+安装 Vue 前端依赖：
 
 ```bash
-conda env create -f envs/environment.inference.jetson-cpu.yml
-conda activate ppgl
+cd frontend-vue-prototype
+npm ci
+cd ..
 ```
 
-## 快速启动
+Spring Boot 依赖会在首次执行 Maven 启动命令时自动下载。
 
-先复制配置模板并指定项目外的数据目录。运行数据、上传文件、病例产物、RAG 索引和日志都应放在这里，不要和代码仓库混在一起。
+### 3. 初始化 MySQL 数据库
+
+先进入 MySQL 管理终端。Ubuntu 默认安装通常可以使用：
+
+```bash
+sudo mysql
+```
+
+如果你的 MySQL root 账号使用密码登录，则改用 `mysql -u root -p`。
+
+在 MySQL 中创建项目数据库和专用账号；请将示例密码替换为自己的强密码：
+
+```sql
+CREATE DATABASE IF NOT EXISTS ppgl_analyze
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'ppgl_app'@'127.0.0.1'
+  IDENTIFIED BY 'replace_with_a_strong_password';
+
+GRANT ALL PRIVILEGES ON ppgl_analyze.*
+  TO 'ppgl_app'@'127.0.0.1';
+
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+导入数据表：
+
+```bash
+mysql -h 127.0.0.1 -u ppgl_app -p ppgl_analyze \
+  < frontend-javaweb/src/main/resources/schema.sql
+```
+
+### 4. 配置运行参数
+
+复制配置模板：
 
 ```bash
 cp .env.example .env
-# 编辑 .env：填写 MYSQL_PASSWORD、PPGL_AUTH_JWT_SECRET、PPGL_INTERNAL_API_KEY，
-# 并将 PPGL_DATA_ROOT 改为本机项目外的可写目录。
-
-set -a
-source .env
-set +a
-
-mkdir -p "$PPGL_DATA_ROOT"/{uploads,jobs,cases,logs,rag-documents,rag-index,rag-parsed}
 ```
 
-真实 `.env` 不要提交到 Git。
+编辑 `.env`，至少确认以下配置：
 
-### 1. 启动 AI 服务和 Vue 前端
+| 配置项 | 作用 | 本地示例 |
+| --- | --- | --- |
+| `PPGL_DATA_ROOT` | 保存病例、日志、RAG 索引和运行结果 | `$HOME/ppgl-assist-data` |
+| `MYSQL_HOST` | MySQL 地址 | `127.0.0.1` |
+| `MYSQL_DATABASE` | 数据库名称 | `ppgl_analyze` |
+| `MYSQL_USER` | 数据库账号 | `ppgl_app` |
+| `MYSQL_PASSWORD` | 数据库密码 | 第 3 步设置的密码 |
+| `PPGL_AUTH_JWT_SECRET` | 登录令牌签名密钥 | 至少 32 个随机字符 |
+| `PPGL_INTERNAL_API_KEY` | 业务后端访问 AI 服务的内部密钥 | 强随机字符串 |
+| `TOTALSEG_WEIGHTS_PATH` | 全器官分割权重目录 | `$HOME/.totalsegmentator/nnunet/results` |
+| `PPGL_V5_CHECKPOINT` | PPGL 分割权重文件（可选覆盖） | `weights/model_best.pth` 或绝对路径 |
+
+可以执行两次下面的命令，分别生成 JWT 密钥和内部 API 密钥：
+
+```bash
+openssl rand -hex 32
+```
+
+真实 `.env` 已被 Git 排除，不要将其中的密码或密钥上传到公开仓库。
+
+### 5. 准备模型
+
+将 PPGL 分割权重放到默认位置：
+
+```text
+ai-backend/progress_patch_v5/weights/model_best.pth
+```
+
+也可以在 `.env` 中通过 `PPGL_V5_CHECKPOINT` 指定其他位置。该权重暂不随仓库发布，后续将上传至 Hugging Face，并在本文档中补充下载地址。
+
+全器官分割首次运行时可能需要下载模型权重。请确保 `TOTALSEG_WEIGHTS_PATH` 指向当前用户可读写的目录，并保持网络可用。
+
+AI 报告和问答需要可用的大模型。默认启动脚本使用 Ollama，并查找 `ppgl-qwen3-32b-q4:latest`。如果本机没有该模型，可使用已经安装的其他 Ollama 模型，例如：
+
+```bash
+ollama pull qwen3:8b
+```
+
+随后在 `.env` 中加入或修改：
+
+```dotenv
+OLLAMA_MODEL=qwen3:8b
+CHAT_OPENAI_MODEL=qwen3:8b
+REPORT_OPENAI_MODEL=qwen3:8b
+```
+
+### 6. 启动全部服务
+
+打开第一个终端，在项目根目录启动 Ollama、FastAPI 和 Vue：
 
 ```bash
 set -a
@@ -136,9 +217,7 @@ set +a
 bash ai-backend/start_ppgl_ai.sh
 ```
 
-该脚本会启动 Ollama、FastAPI（8000）和 Vue（5173）。需要先在 `ppgl` Conda 环境中安装 TotalSegmentator，并在本机准备配置的 Ollama 模型。
-
-### 2. 启动 Spring Boot 业务后端
+看到 FastAPI 运行在 `8000` 端口、Vue 运行在 `5173` 端口后，打开第二个终端启动 Spring Boot：
 
 ```bash
 set -a
@@ -149,25 +228,80 @@ cd frontend-javaweb
 mvn spring-boot:run
 ```
 
-访问 Spring Boot：
+服务启动完成后访问：
 
 ```text
-http://127.0.0.1:8080/
+http://127.0.0.1:5173/
 ```
 
-数据库建表脚本：
+### 7. 创建本地医生账号
 
-```text
-frontend-javaweb/src/main/resources/schema.sql
-```
+项目不提供固定的默认账号和密码。公开注册接口只创建患者账号；本地首次体验医生工作流时，可以先注册一个测试账号，再将其角色调整为医生。
 
-### 3. 初始化 RAG 知识库（首次运行）
+在项目根目录执行一次：
 
 ```bash
-cd frontend-vue-prototype
-cp --update=none ../ai-backend/knowledge_base/documents/* "$PPGL_DATA_ROOT/rag-documents/"
+DEMO_PASSWORD="$(openssl rand -hex 16)"
 
-cd ../ai-backend
+curl --fail-with-body -X POST http://127.0.0.1:8080/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"doctor_demo\",\"password\":\"${DEMO_PASSWORD}\",\"displayName\":\"演示医生\",\"phone\":\"13800000000\",\"patientIdCard\":\"110101199001011234\"}"
+
+mysql -h 127.0.0.1 -u ppgl_app -p ppgl_analyze \
+  -e "UPDATE users SET role='DOCTOR', patient_id_card=NULL WHERE username='doctor_demo';"
+
+echo "医生账号：doctor_demo"
+echo "医生密码：${DEMO_PASSWORD}"
+unset DEMO_PASSWORD
+```
+
+记录终端显示的随机密码，然后使用 `doctor_demo` 登录。若注册信息与本地已有账号冲突，请更换用户名、手机号和身份证号示例值。服务器部署时应由数据库管理员创建独立账号，不要继续使用演示账号。
+
+## 使用说明
+
+### 上传病例
+
+1. 使用医生账号登录后进入“上传病例”。
+2. 选择经过授权和脱敏的 CT 文件，当前主要支持 `.nii.gz` 格式。
+3. 上传完成后，系统会生成病例编号并进入病例详情页。
+
+### 执行分割
+
+病例详情页提供两个独立任务：
+
+- “全器官分割”生成器官掩膜、器官体积和三维结构。
+- “PPGL 肿瘤分割”生成 PPGL 肿瘤掩膜、体积、最大径和三维肿瘤结构。
+
+两个任务可以分别运行，互不绑定。任务失败后可以在病例管理页面重新尝试分割。
+
+### 查看结果
+
+- 在病例详情页查看分割进度、量化指标和结果文件。
+- 在二维视图中查看 CT 与分割掩膜的叠加效果。
+- 在三维视图中勾选器官或 PPGL 肿瘤，并调整显示范围。
+- 两类分割都完成后，可同时加载器官与肿瘤进行联合阅片。
+
+### 生成 AI 报告
+
+分割完成后进入报告页面生成结构化 AI 辅助报告。报告按照固定章节组织，病例数据和量化结果会填入对应位置。报告仅供辅助参考，使用者应结合原始影像和专业判断进行复核。
+
+### 病例管理
+
+病例列表支持查看详情、修改病例编号、删除病例和重试失败任务。删除病例会同时移除对应的运行文件，操作前请确认不再需要这些数据或已经完成备份。
+
+## 可选：启用医学知识问答
+
+RAG 知识库不是影像分割的必需条件。需要使用医学知识检索和问答时，再执行以下初始化操作。
+
+```bash
+set -a
+source .env
+set +a
+
+mkdir -p "$PPGL_DATA_ROOT"/{rag-documents,rag-parsed,rag-index}
+cp --update=none ai-backend/knowledge_base/documents/* "$PPGL_DATA_ROOT/rag-documents/"
+
+cd ai-backend
 python -m backend.rag.build_chunks \
   --documents "$PPGL_DATA_ROOT/rag-documents" \
   --output "$PPGL_DATA_ROOT/rag-parsed/chunks.jsonl"
@@ -175,120 +309,113 @@ python -m backend.rag.build_chunks \
 python -c 'from backend.rag.vector_store import build_vector_index; print(build_vector_index(device="cuda", batch_size=16))'
 ```
 
-如无 GPU，可将 `device="cuda"` 改为 `device="cpu"`，但构建会明显更慢。构建完成后刷新知识库页面即可使用。
+首次构建会下载默认的 `BAAI/bge-m3` 向量模型。无 GPU 时可将 `device="cuda"` 改为 `device="cpu"`，但构建速度会更慢。
 
-访问地址：
+## 模型与数据
 
-```text
-http://127.0.0.1:5173/
-```
+公开仓库不包含以下资产：
 
-## 模型权重与医学数据
+- PPGL 分割权重
+- 全器官分割权重
+- 真实医学影像
+- 数据库内容、上传文件、日志和推理结果
+- 本地大模型文件和私有配置
 
-公开仓库不包含模型权重、真实医学影像和运行输出。完整运行推理前，需要在本地准备以下资产：
-
-- PPGL 分割权重，默认位置：`ai-backend/progress_patch_v5/weights/model_best.pth`。该权重暂不随代码仓库发布，后续将上传至 Hugging Face，并在此处补充下载链接。
-- TotalSegmentator 所需权重和运行环境
-- 已授权、已脱敏的 `.nii.gz` 测试影像
-
-PPGL 分割运行时也支持通过环境变量覆盖模型路径：
-
-```bash
-export PPGL_V5_CHECKPOINT=ai-backend/progress_patch_v5/weights/model_best.pth
-```
-
-更多说明见 [WEIGHTS_AND_DATA.md](WEIGHTS_AND_DATA.md)。
-
-## 数据目录规范
-
-代码仓库只放源码、配置模板、依赖文件、数据库迁移/建表脚本和项目说明。数据库、上传文件、病例推理产物、RAG 索引、日志和真实 `.env` 都属于运行资产，应放在项目外部目录。
-
-推荐结构：
+运行数据默认保存在 `~/ppgl-assist-data`。通过 `PPGL_DATA_ROOT` 可以改为其他项目外目录，推荐结构如下：
 
 ```text
 $PPGL_DATA_ROOT/
-├── uploads/        # Java 端上传文件和查看器病例文件
-├── jobs/           # Java 端分析任务状态
-├── cases/          # FastAPI AI 病例工作区
-├── logs/           # 启动脚本和服务日志
-├── rag-documents/  # RAG 原始知识文档
-├── rag-index/      # Qdrant 本地索引
-└── rag-parsed/     # RAG 切块结果
+├── uploads/        # 上传的病例文件
+├── jobs/           # 分析任务状态与中间结果
+├── cases/          # AI 病例工作区和推理结果
+├── logs/           # 服务日志
+├── rag-documents/  # RAG 原始文档
+├── rag-parsed/     # RAG 切块结果
+└── rag-index/      # Qdrant 本地向量索引
 ```
 
-默认情况下，服务会使用 `~/ppgl-assist-data`。如果要放到大硬盘，启动前设置：
+请只使用已获得授权且完成脱敏的测试影像。模型与数据的补充说明见 [WEIGHTS_AND_DATA.md](WEIGHTS_AND_DATA.md)。
+
+## 部署与安全
+
+本地体验可以直接使用上述启动方式。服务器部署推荐使用单机或内网环境，并遵循以下配置：
+
+- 使用 Nginx 托管前端构建产物，将 `/api` 请求转发到 Spring Boot。
+- 仅向使用者开放 Web 入口，FastAPI 和 MySQL 保持在本机或内网。
+- 为 `PPGL_AUTH_JWT_SECRET`、`PPGL_INTERNAL_API_KEY` 和数据库账号设置独立的强密码。
+- 将病例、数据库、模型、日志和运行结果放在代码仓库之外，并定期备份。
+- 不要把 `.env`、真实病例、患者信息或模型权重上传到公开仓库。
+- 确保服务运行账号对数据目录和模型目录具有所需的读写权限。
+
+常用服务器配置示例：
+
+| 配置项 | 示例 |
+| --- | --- |
+| `PPGL_DATA_ROOT` | `/var/lib/ppgl-assist` |
+| `MYSQL_HOST` | MySQL 内网地址 |
+| `PPGL_PIPELINE_BASE_URL` | `http://ai-service:8000` |
+| `VITE_API_PROXY_TARGET` | `http://java-service:8080` |
+| `CHAT_OPENAI_BASE_URL` | 内网大模型服务地址 |
+
+## 常见问题
+
+### Maven 提示没有编译器
+
+这表示当前使用的是 JRE，或 `JAVA_HOME` 没有指向 JDK 21。确认以下两个命令都能正常输出版本：
 
 ```bash
-export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
+java -version
+javac -version
 ```
 
-## 部署规则
-
-本项目支持本地开发和单机/内网部署，但两者必须使用不同配置。不要把开发机的 `127.0.0.1`、`/mnt/20T` 或模型路径直接带到服务器。
-
-| 配置项 | 本地开发示例 | 线上部署示例 |
-| --- | --- | --- |
-| `PPGL_DATA_ROOT` | `/mnt/20T/ppgl-assist-data` | `/var/lib/ppgl-assist` |
-| `MYSQL_HOST` | `127.0.0.1` | `mysql` 或数据库内网 IP |
-| `PPGL_PIPELINE_BASE_URL` | `http://127.0.0.1:8000` | `http://ai-service:8000` |
-| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8080` | `http://java-service:8080` |
-| `CHAT_OPENAI_BASE_URL` | `http://127.0.0.1:11434/v1` | 内网 LLM 服务地址 |
-
-### 本地开发
-
-复制配置模板并按自己的机器修改。Shell 启动前需要导出变量；`ai-backend/start_ppgl_ai.sh` 会自动读取仓库根目录或 `ai-backend/.env`。
+Ubuntu 的 JDK 21 常见配置为：
 
 ```bash
-cp .env.example .env
-# 编辑 .env：至少填写 MYSQL_PASSWORD、PPGL_AUTH_JWT_SECRET、PPGL_INTERNAL_API_KEY，
-# 并将 PPGL_DATA_ROOT 改为本机项目外的可写目录。
-
-set -a
-source .env
-set +a
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-随后按“快速启动”中的 FastAPI、Spring Boot、Vue 顺序启动。Vue 开发服务器通过 `VITE_API_PROXY_TARGET` 转发 `/api` 到 Spring Boot；浏览器不直接访问 FastAPI。
+### 分割失败后在哪里查看日志
 
-### 单机/内网服务器部署
+服务日志位于：
 
-1. 创建专用运行用户和数据目录，运行用户必须拥有数据目录和模型目录的读写权限。
-
-```bash
-sudo useradd --system --create-home --shell /usr/sbin/nologin ppgl || true
-sudo install -d -o ppgl -g ppgl /var/lib/ppgl-assist/{uploads,jobs,cases,logs,rag-documents,rag-index,rag-parsed}
-sudo install -d -o ppgl -g ppgl /etc/ppgl-assist
-sudo cp .env.example /etc/ppgl-assist/ppgl-assist.env
-sudo chmod 600 /etc/ppgl-assist/ppgl-assist.env
-sudo chown ppgl:ppgl /etc/ppgl-assist/ppgl-assist.env
+```text
+$PPGL_DATA_ROOT/logs/
 ```
 
-2. 编辑 `/etc/ppgl-assist/ppgl-assist.env`：使用 `/var/lib/ppgl-assist`，填写真实密钥和数据库地址；若 AI、MySQL、LLM 不在同一台机器，填写其内网 DNS 或 IP。不要把 FastAPI 的 `8000` 端口暴露到公网。
+每个病例的分割日志和错误信息位于：
 
-3. 以 `ppgl` 用户启动服务时加载该文件：
-
-```bash
-set -a
-source /etc/ppgl-assist/ppgl-assist.env
-set +a
+```text
+$PPGL_DATA_ROOT/cases/<病例编号>/
 ```
 
-启动 Java 时以上环境变量会自动映射到 `application.properties`；启动 Vue 开发服务时 `VITE_API_PROXY_TARGET` 会映射代理目标。生产 Web 前端应由 Nginx 托管构建产物，并将 `/api` 反向代理到 Spring Boot；Nginx 是唯一对公网开放的入口。
+修正模型路径、显存或依赖问题后，可以在病例管理页面重新尝试失败的任务。
 
-4. 部署前检查：服务器能连接 `MYSQL_HOST:MYSQL_PORT`，`PPGL_DATA_ROOT` 与 `TOTALSEG_WEIGHTS_PATH` 可被 `ppgl` 用户访问，且 FastAPI、Java、LLM 服务之间的内网地址可达。
+### 页面可以打开，但无法登录或调用接口
 
-## 安全设计
+请确认 Spring Boot 已运行在 `8080` 端口，Vue 的 `VITE_API_PROXY_TARGET` 指向该地址，并且登录账号已经存在于当前配置对应的 MySQL 数据库中。
 
-- 前端不保存后端内部密钥。
-- Vue 只访问 Spring Boot 公开 API。
-- Spring Boot 负责用户认证、JWT 签发、角色判断和病例权限控制。
-- FastAPI 使用内部 API Key 和受信用户上下文，不作为公网直接入口。
-- `.gitignore` 已排除 `.env`、证书、权重、医学影像、上传目录、任务目录、日志、缓存和构建产物。
-- 数据库和运行数据不作为代码仓库的一部分管理。
+## 系统组成
 
-公开部署前建议：
+```text
+浏览器（Vue，5173）
+  └─ 病例操作、结果查看与报告交互
+       ↓ /api
+Spring Boot（8080）
+  └─ 登录认证、角色与病例权限、业务数据、AI 请求转发
+       ↓ 内部 API
+FastAPI（8000）
+  └─ 全器官分割、PPGL 肿瘤分割、三维产物、RAG 与 AI 报告
+```
 
-- 使用强随机 `PPGL_AUTH_JWT_SECRET` 和 `PPGL_INTERNAL_API_KEY`。
-- 不提交真实病例、真实患者信息、模型权重和私有配置。
-- 将 FastAPI 限制在内网或本机访问。
-- 对公开仓库执行密钥扫描。
+主要目录：
+
+```text
+.
+├── frontend-vue-prototype/  # Vue Web 界面
+├── frontend-javaweb/        # Spring Boot 业务后端与患者端原型
+├── ai-backend/              # FastAPI、分割推理、RAG 和报告服务
+├── envs/                    # Conda 环境配置
+├── docs/                    # 补充说明与图片资源
+└── WEIGHTS_AND_DATA.md      # 模型权重和医学数据说明
+```
