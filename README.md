@@ -13,6 +13,7 @@
   <a href="#系统架构">系统架构</a> ·
   <a href="#核心功能">核心功能</a> ·
   <a href="#快速启动">快速启动</a> ·
+  <a href="#部署规则">部署规则</a> ·
   <a href="#安全设计">安全设计</a>
 </p>
 
@@ -107,11 +108,21 @@ conda activate ppgl
 
 ## 快速启动
 
+先指定项目外的数据目录。运行数据、上传文件、病例产物、RAG 索引和日志都应放在这里，不要和代码仓库混在一起。
+
+```bash
+export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
+mkdir -p "$PPGL_DATA_ROOT"/{uploads,jobs,cases,logs,rag-documents,rag-index,rag-parsed}
+```
+
+也可以复制 `.env.example` 为本地 `.env` 后填写真实值。真实 `.env` 不要提交到 Git。
+
 ### 1. 启动 FastAPI AI 服务
 
 ```bash
 cd ai-backend/backend
 
+export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
 export PPGL_INTERNAL_API_KEY=change-this-in-local-env
 
 uvicorn main:app --host 127.0.0.1 --port 8000
@@ -124,6 +135,7 @@ cd frontend-javaweb
 
 export MYSQL_USER=root
 export MYSQL_PASSWORD=your_mysql_password
+export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
 export PPGL_AUTH_JWT_SECRET=change-this-to-a-random-string-at-least-32-bytes
 export PPGL_INTERNAL_API_KEY=change-this-in-local-env
 
@@ -173,6 +185,84 @@ export PPGL_V5_CHECKPOINT=ai-backend/progress_patch_v5/weights/model_best.pth
 
 更多说明见 [WEIGHTS_AND_DATA.md](WEIGHTS_AND_DATA.md)。
 
+## 数据目录规范
+
+代码仓库只放源码、配置模板、依赖文件、数据库迁移/建表脚本和项目说明。数据库、上传文件、病例推理产物、RAG 索引、日志和真实 `.env` 都属于运行资产，应放在项目外部目录。
+
+推荐结构：
+
+```text
+$PPGL_DATA_ROOT/
+├── uploads/        # Java 端上传文件和查看器病例文件
+├── jobs/           # Java 端分析任务状态
+├── cases/          # FastAPI AI 病例工作区
+├── logs/           # 启动脚本和服务日志
+├── rag-documents/  # RAG 原始知识文档
+├── rag-index/      # Qdrant 本地索引
+└── rag-parsed/     # RAG 切块结果
+```
+
+默认情况下，服务会使用 `~/ppgl-assist-data`。如果要放到大硬盘，启动前设置：
+
+```bash
+export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
+```
+
+## 部署规则
+
+本项目支持本地开发和单机/内网部署，但两者必须使用不同配置。不要把开发机的 `127.0.0.1`、`/mnt/20T` 或模型路径直接带到服务器。
+
+| 配置项 | 本地开发示例 | 线上部署示例 |
+| --- | --- | --- |
+| `PPGL_DATA_ROOT` | `/mnt/20T/ppgl-assist-data` | `/var/lib/ppgl-assist` |
+| `MYSQL_HOST` | `127.0.0.1` | `mysql` 或数据库内网 IP |
+| `PPGL_PIPELINE_BASE_URL` | `http://127.0.0.1:8000` | `http://ai-service:8000` |
+| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8080` | `http://java-service:8080` |
+| `CHAT_OPENAI_BASE_URL` | `http://127.0.0.1:11434/v1` | 内网 LLM 服务地址 |
+
+### 本地开发
+
+复制配置模板并按自己的机器修改。Shell 启动前需要导出变量；`ai-backend/start_ppgl_ai.sh` 会自动读取仓库根目录或 `ai-backend/.env`。
+
+```bash
+cp .env.example .env
+# 编辑 .env：至少填写 MYSQL_PASSWORD、PPGL_AUTH_JWT_SECRET、PPGL_INTERNAL_API_KEY，
+# 并将 PPGL_DATA_ROOT 改为本机项目外的可写目录。
+
+set -a
+source .env
+set +a
+```
+
+随后按“快速启动”中的 FastAPI、Spring Boot、Vue 顺序启动。Vue 开发服务器通过 `VITE_API_PROXY_TARGET` 转发 `/api` 到 Spring Boot；浏览器不直接访问 FastAPI。
+
+### 单机/内网服务器部署
+
+1. 创建专用运行用户和数据目录，运行用户必须拥有数据目录和模型目录的读写权限。
+
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin ppgl || true
+sudo install -d -o ppgl -g ppgl /var/lib/ppgl-assist/{uploads,jobs,cases,logs,rag-documents,rag-index,rag-parsed}
+sudo install -d -o ppgl -g ppgl /etc/ppgl-assist
+sudo cp .env.example /etc/ppgl-assist/ppgl-assist.env
+sudo chmod 600 /etc/ppgl-assist/ppgl-assist.env
+sudo chown ppgl:ppgl /etc/ppgl-assist/ppgl-assist.env
+```
+
+2. 编辑 `/etc/ppgl-assist/ppgl-assist.env`：使用 `/var/lib/ppgl-assist`，填写真实密钥和数据库地址；若 AI、MySQL、LLM 不在同一台机器，填写其内网 DNS 或 IP。不要把 FastAPI 的 `8000` 端口暴露到公网。
+
+3. 以 `ppgl` 用户启动服务时加载该文件：
+
+```bash
+set -a
+source /etc/ppgl-assist/ppgl-assist.env
+set +a
+```
+
+启动 Java 时以上环境变量会自动映射到 `application.properties`；启动 Vue 开发服务时 `VITE_API_PROXY_TARGET` 会映射代理目标。生产 Web 前端应由 Nginx 托管构建产物，并将 `/api` 反向代理到 Spring Boot；Nginx 是唯一对公网开放的入口。
+
+4. 部署前检查：服务器能连接 `MYSQL_HOST:MYSQL_PORT`，`PPGL_DATA_ROOT` 与 `TOTALSEG_WEIGHTS_PATH` 可被 `ppgl` 用户访问，且 FastAPI、Java、LLM 服务之间的内网地址可达。
+
 ## 安全设计
 
 - 前端不保存后端内部密钥。
@@ -180,6 +270,7 @@ export PPGL_V5_CHECKPOINT=ai-backend/progress_patch_v5/weights/model_best.pth
 - Spring Boot 负责用户认证、JWT 签发、角色判断和病例权限控制。
 - FastAPI 使用内部 API Key 和受信用户上下文，不作为公网直接入口。
 - `.gitignore` 已排除 `.env`、证书、权重、医学影像、上传目录、任务目录、日志、缓存和构建产物。
+- 数据库和运行数据不作为代码仓库的一部分管理。
 
 公开部署前建议：
 

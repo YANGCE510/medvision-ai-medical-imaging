@@ -6,6 +6,16 @@ FastAPI is the internal AI service. It owns model execution, AI task workspaces,
 RAG retrieval, and report generation. User login, roles, business records, and the public API belong to
 Spring Boot. The browser must use Spring Boot's `/api/ai/**` gateway instead of connecting to port 8000.
 
+Runtime data is intentionally kept outside the code repository. Set `PPGL_DATA_ROOT` before starting services:
+
+```bash
+export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
+mkdir -p "$PPGL_DATA_ROOT"/{cases,logs,rag-documents,rag-index,rag-parsed}
+```
+
+FastAPI uses `$PPGL_DATA_ROOT/cases` for AI case workspaces by default. RAG documents, parsed chunks, and Qdrant
+indexes can be overridden with `PPGL_RAG_DOCUMENTS_DIR`, `PPGL_RAG_CHUNKS_PATH`, and `PPGL_QDRANT_PATH`.
+
 The current Web PPGL task uses the repository-contained ProgressPatchV5 runtime at
 `ai-backend/progress_patch_v5/`. Its default checkpoint location is
 `ai-backend/progress_patch_v5/weights/model_best.pth`.
@@ -25,7 +35,7 @@ python ai-backend/run_case_pipeline.py \
 Default output root:
 
 ```text
-ai-backend/runs
+$PPGL_DATA_ROOT/cases
 ```
 
 ## One-command web startup

@@ -14,14 +14,21 @@ from .embedding_service import chunk_embedding_text, encode_texts
 
 
 AI_BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_CHUNKS_PATH = AI_BACKEND_DIR / "knowledge_base" / "parsed" / "chunks.jsonl"
-DEFAULT_INDEX_PATH = AI_BACKEND_DIR / "knowledge_base" / "index" / "qdrant"
+DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
+DEFAULT_CHUNKS_PATH = Path(
+    os.environ.get("PPGL_RAG_CHUNKS_PATH", str(DATA_ROOT / "rag-parsed" / "chunks.jsonl"))
+).expanduser().resolve()
+DEFAULT_INDEX_PATH = Path(
+    os.environ.get("PPGL_QDRANT_PATH", str(DATA_ROOT / "rag-index" / "qdrant"))
+).expanduser().resolve()
 DEFAULT_COLLECTION = "ppgl_knowledge"
 
 
 def qdrant_path(explicit: Optional[Path] = None) -> Path:
+    if explicit is not None:
+        return explicit.expanduser().resolve()
     configured = os.environ.get("PPGL_QDRANT_PATH", "").strip()
-    return (explicit or Path(configured) if configured else explicit or DEFAULT_INDEX_PATH).resolve()
+    return (Path(configured).expanduser() if configured else DEFAULT_INDEX_PATH).resolve()
 
 
 def collection_name(explicit: Optional[str] = None) -> str:

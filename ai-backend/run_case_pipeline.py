@@ -41,7 +41,8 @@ DEFAULT_PACKAGE_DIR = PROJECT_ROOT / "pipeline-otafv2"
 DEFAULT_RAW_GCP_DIR = DEFAULT_PACKAGE_DIR / "raw_gcp"
 DEFAULT_TOTALSEG_ROOT = ""
 DEFAULT_CHECKPOINT = PROJECT_DIR / "ckpt/model_best_160.pth"
-DEFAULT_OUTPUT_ROOT = PROJECT_DIR / "runs"
+DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
+DEFAULT_OUTPUT_ROOT = DATA_ROOT / "runs"
 
 GCP_TUMOR_LABEL = 10
 

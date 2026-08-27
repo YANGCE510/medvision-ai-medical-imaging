@@ -117,15 +117,17 @@ async def require_api_authentication(request: Request, call_next):
                 return JSONResponse(status_code=403, content={"detail": "You do not have access to this case"})
     return await call_next(request)
 
-# 项目内目录均从当前文件定位，不依赖本机绝对路径。
+# 代码目录从当前文件定位；运行数据默认放到项目外，避免和源码混放。
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend-vue-prototype"
 if str(FRONTEND_DIR) not in sys.path:
     sys.path.insert(0, str(FRONTEND_DIR))
 
-# 病例保存目录：ai-backend/cases
-CASES_DIR = BASE_DIR / "cases"
+DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
+
+# 病例保存目录：$PPGL_DATA_ROOT/cases
+CASES_DIR = Path(os.environ.get("PPGL_CASES_DIR", str(DATA_ROOT / "cases"))).expanduser().resolve()
 CASES_DIR.mkdir(parents=True, exist_ok=True)
 RUNNING_CASES = set()
 RUNNING_PPGL_CASES = set()

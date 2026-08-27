@@ -15,11 +15,14 @@ BACKEND_HOST="${PPGL_BACKEND_HOST:-127.0.0.1}"
 BACKEND_PORT="8000"
 FRONTEND_HOST="0.0.0.0"
 FRONTEND_PORT="5173"
-
-OLLAMA_LOG="$BACKEND_DIR/ollama_server.log"
-BACKEND_LOG="$BACKEND_DIR/uvicorn_backend.log"
-FRONTEND_LOG="$FRONTEND_DIR/frontend_vite.log"
 CURL_BIN="${CURL_BIN:-$(command -v curl)}"
+
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
 
 if [ -f "$CODE_ALL_DIR/.env" ]; then
   set -a
@@ -27,6 +30,15 @@ if [ -f "$CODE_ALL_DIR/.env" ]; then
   source "$CODE_ALL_DIR/.env"
   set +a
 fi
+
+PPGL_DATA_ROOT="${PPGL_DATA_ROOT:-$HOME/ppgl-assist-data}"
+PPGL_LOG_DIR="${PPGL_LOG_DIR:-$PPGL_DATA_ROOT/logs}"
+mkdir -p "$PPGL_LOG_DIR" "$PPGL_DATA_ROOT/cases" "$PPGL_DATA_ROOT/rag-documents" "$PPGL_DATA_ROOT/rag-index" "$PPGL_DATA_ROOT/rag-parsed"
+export PPGL_DATA_ROOT
+
+OLLAMA_LOG="$PPGL_LOG_DIR/ollama_server.log"
+BACKEND_LOG="$PPGL_LOG_DIR/uvicorn_backend.log"
+FRONTEND_LOG="$PPGL_LOG_DIR/frontend_vite.log"
 
 JWT_SECRET_VALUE="${PPGL_AUTH_JWT_SECRET:-}"
 if [ "${#JWT_SECRET_VALUE}" -lt 32 ]; then

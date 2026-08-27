@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -10,8 +11,13 @@ from .jats_parser import parse_document
 
 
 AI_BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_DOCUMENTS_DIR = AI_BACKEND_DIR / "knowledge_base" / "documents"
-DEFAULT_OUTPUT_PATH = AI_BACKEND_DIR / "knowledge_base" / "parsed" / "chunks.jsonl"
+DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
+DEFAULT_DOCUMENTS_DIR = Path(
+    os.environ.get("PPGL_RAG_DOCUMENTS_DIR", str(DATA_ROOT / "rag-documents"))
+).expanduser().resolve()
+DEFAULT_OUTPUT_PATH = Path(
+    os.environ.get("PPGL_RAG_CHUNKS_PATH", str(DATA_ROOT / "rag-parsed" / "chunks.jsonl"))
+).expanduser().resolve()
 SUPPORTED_SUFFIXES = {".xml", ".md", ".markdown"}
 
 

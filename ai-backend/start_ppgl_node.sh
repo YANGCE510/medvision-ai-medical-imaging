@@ -2,6 +2,7 @@
 set -euo pipefail
 
 CODE_ALL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$CODE_ALL_DIR/.." && pwd)"
 BACKEND_DIR="$CODE_ALL_DIR/backend"
 CONDA_ENV="${CONDA_ENV:-ppgl}"
 
@@ -13,12 +14,16 @@ OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1}"
 OLLAMA_PORT="${OLLAMA_PORT:-11434}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-ppgl-qwen3-32b-q4:latest}"
 OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:--1}"
-
-BACKEND_LOG="$BACKEND_DIR/uvicorn_backend.log"
-MINICPM_LOG="$BACKEND_DIR/local_minicpm_server.log"
 CURL_BIN="${CURL_BIN:-$(command -v curl)}"
 
 MODE="${1:-backend-only}"
+
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
 
 if [ -f "$CODE_ALL_DIR/.env" ]; then
   set -a
@@ -26,6 +31,14 @@ if [ -f "$CODE_ALL_DIR/.env" ]; then
   source "$CODE_ALL_DIR/.env"
   set +a
 fi
+
+PPGL_DATA_ROOT="${PPGL_DATA_ROOT:-$HOME/ppgl-assist-data}"
+PPGL_LOG_DIR="${PPGL_LOG_DIR:-$PPGL_DATA_ROOT/logs}"
+mkdir -p "$PPGL_LOG_DIR" "$PPGL_DATA_ROOT/cases" "$PPGL_DATA_ROOT/rag-documents" "$PPGL_DATA_ROOT/rag-index" "$PPGL_DATA_ROOT/rag-parsed"
+export PPGL_DATA_ROOT
+
+BACKEND_LOG="$PPGL_LOG_DIR/uvicorn_backend.log"
+MINICPM_LOG="$PPGL_LOG_DIR/local_minicpm_server.log"
 
 JWT_SECRET_VALUE="${PPGL_AUTH_JWT_SECRET:-}"
 if [ "$MODE" != "stop" ] && [ "${#JWT_SECRET_VALUE}" -lt 32 ]; then
@@ -183,7 +196,7 @@ if [ "$MODE" = "with-chat" ] || [ "$MODE" = "with-ollama" ]; then
   fi
   if ! env -u LD_LIBRARY_PATH "$CURL_BIN" -fsS --noproxy "*" --max-time 2 \
     "http://$OLLAMA_HOST:$OLLAMA_PORT/api/tags" >/dev/null 2>&1; then
-    setsid ollama serve >> "$BACKEND_DIR/ollama_server.log" 2>&1 < /dev/null &
+    setsid ollama serve >> "$PPGL_LOG_DIR/ollama_server.log" 2>&1 < /dev/null &
     echo "Ollama starting: http://$OLLAMA_HOST:$OLLAMA_PORT"
     wait_for_http "http://$OLLAMA_HOST:$OLLAMA_PORT/api/tags" "Ollama" 30
   fi
@@ -219,7 +232,7 @@ if [ "$MODE" = "with-minicpm" ]; then
   echo "- MiniCPM: $MINICPM_LOG"
 fi
 if [ "$MODE" = "with-chat" ] || [ "$MODE" = "with-ollama" ]; then
-  echo "- Ollama:  $BACKEND_DIR/ollama_server.log"
+  echo "- Ollama:  $PPGL_LOG_DIR/ollama_server.log"
   echo "- Model:   $OLLAMA_MODEL"
   echo "- Keep-alive: $OLLAMA_KEEP_ALIVE"
 fi
