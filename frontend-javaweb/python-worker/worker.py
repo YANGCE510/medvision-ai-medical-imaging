@@ -26,7 +26,7 @@ from totalsegmentator.nifti_ext_header import add_label_map_to_nifti
 from totalsegmentator.postprocessing import remove_auxiliary_labels
 from totalsegmentator.resampling import change_spacing
 
-PPGL_FRONTEND_MESH_HELPER = PROJECT_ROOT / "PPGL" / "ppgl-frontend" / "run_otafv2.py"
+MESH_HELPER = PROJECT_ROOT.parent / "frontend-vue-prototype" / "run_totalseg.py"
 
 
 def check_if_shape_and_affine_identical(img_1, img_2):
@@ -298,8 +298,8 @@ def generate_mesh_outputs(job_dir):
     segmentation = final_dir / "segmentation.nii.gz"
     if not segmentation.is_file():
         raise RuntimeError(f"缺少三维重建输入：{segmentation}")
-    if not PPGL_FRONTEND_MESH_HELPER.is_file():
-        raise RuntimeError(f"缺少三维重建 helper：{PPGL_FRONTEND_MESH_HELPER}")
+    if not MESH_HELPER.is_file():
+        raise RuntimeError(f"缺少三维重建 helper：{MESH_HELPER}")
 
     label_map_path = final_dir / "label_map.json"
     if not label_map_path.is_file():
@@ -309,7 +309,7 @@ def generate_mesh_outputs(job_dir):
         label_map_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     update_status(job_dir, "mesh", "正在生成三维模型", 100)
-    spec = importlib.util.spec_from_file_location("ppgl_mesh_helper", PPGL_FRONTEND_MESH_HELPER)
+    spec = importlib.util.spec_from_file_location("ppgl_mesh_helper", MESH_HELPER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     outputs = module.create_mesh_outputs(segmentation, label_map_path, final_dir)

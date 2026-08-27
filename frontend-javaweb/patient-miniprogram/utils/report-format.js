@@ -118,8 +118,8 @@ function buildPatientReport(raw) {
   const location = readableLabel(origin.suspected_origin || metrics.tumor_side_by_nearest_kidney);
   const volume = formatVolume(firstNumericValue(
     raw.tumorVolumeMl,
-    metrics.apr_tumor_volume_ml,
-    tumorBurden.apr_tumor_volume_ml
+    metrics.tumor_volume_ml,
+    tumorBurden.tumor_volume_ml
   ));
   const maxDiameter = formatDistance(tumorBurden.max_diameter_mm);
   const reasons = unique((riskJson.reasons || []).map(patientReason)).slice(0, 3);

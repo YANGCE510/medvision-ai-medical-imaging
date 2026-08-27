@@ -37,13 +37,13 @@
         <el-table-column label="状态说明" min-width="210">
           <template #default="{ row }">
             <div class="task-messages">
-              <span>全器官：{{ row.organ_status?.message || '-' }}</span>
-              <span>PPGL：{{ row.ppgl_status?.message || '-' }}</span>
+              <span>全器官：{{ getTaskMessage('organ', row.organ_status) }}</span>
+              <span>PPGL：{{ getTaskMessage('ppgl', row.ppgl_status) }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="560">
+        <el-table-column label="操作" width="680">
           <template #default="{ row }">
             <el-button size="small" :icon="View" @click="goDetail(row.case_id)">结果</el-button>
             <el-button
@@ -58,21 +58,30 @@
               v-if="canStartTask(row.organ_status?.status)"
               size="small"
               :icon="VideoPlay"
-              @click="segmentOrgans(row.case_id)"
+              @click="segmentOrgans(row)"
             >
-              全器官
+              {{ row.organ_status?.status === 'failed' ? '重试全器官' : '全器官' }}
             </el-button>
             <el-button
               v-if="canStartTask(row.ppgl_status?.status)"
               size="small"
               type="warning"
               :icon="VideoPlay"
-              @click="segmentPpgl(row.case_id)"
+              @click="segmentPpgl(row)"
             >
-              PPGL
+              {{ row.ppgl_status?.status === 'failed' ? '重试 PPGL' : 'PPGL' }}
             </el-button>
             <el-button size="small" type="primary" :icon="DataAnalysis" @click="go3D(row.case_id)">联合阅片</el-button>
             <el-button size="small" type="success" :icon="Document" @click="goReport(row.case_id)">报告</el-button>
+            <el-button
+              size="small"
+              type="danger"
+              :icon="Delete"
+              :disabled="isCaseActive(row)"
+              @click="removeCase(row)"
+            >
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -86,6 +95,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import {
   DataAnalysis,
+  Delete,
   Document,
   Edit,
   Refresh,
@@ -95,6 +105,7 @@ import {
 } from '@element-plus/icons-vue'
 import {
   TOTALSEGMENTATOR_PARAMS,
+  deleteCase,
   getCaseList,
   startOrganSegmentation,
   startPpglSegmentation,
@@ -127,6 +138,22 @@ function getStatusText(status) {
     failed: '失败'
   }
   return map[status] || status
+}
+
+function getTaskMessage(task, taskStatus) {
+  const status = taskStatus?.status
+  if (task === 'organ') {
+    if (status === 'completed') return '全器官分割完成'
+    if (status === 'running') return '正在进行全器官分割'
+    if (status === 'queued') return '全器官分割任务已提交'
+    if (status === 'failed') return '全器官分割失败，可点击重试'
+    return taskStatus?.message || '等待启动全器官分割'
+  }
+  if (status === 'completed') return '肿瘤分割完成'
+  if (status === 'running') return '正在进行肿瘤分割'
+  if (status === 'queued') return '肿瘤分割任务已提交'
+  if (status === 'failed') return '肿瘤分割失败，可点击重试'
+  return taskStatus?.message || '等待启动肿瘤分割'
 }
 
 function hasActiveCase() {
@@ -206,25 +233,43 @@ async function renameCase(row) {
   }
 }
 
-async function segmentOrgans(caseId) {
+async function segmentOrgans(row) {
+  const retry = row.organ_status?.status === 'failed'
   try {
-    await startOrganSegmentation(caseId, TOTALSEGMENTATOR_PARAMS)
-    ElMessage.success('已启动全器官分割')
+    await startOrganSegmentation(row.case_id, { ...TOTALSEGMENTATOR_PARAMS, force: retry })
+    ElMessage.success(retry ? '已重新提交全器官分割' : '已启动全器官分割')
     await loadCases()
-    router.push(`/cases/${caseRoute(caseId)}`)
+    router.push(`/cases/${caseRoute(row.case_id)}`)
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '启动全器官分割失败')
   }
 }
 
-async function segmentPpgl(caseId) {
+async function segmentPpgl(row) {
+  const retry = row.ppgl_status?.status === 'failed'
   try {
-    await startPpglSegmentation(caseId, { device: 'cuda:0' })
-    ElMessage.success('已启动 PPGL 肿瘤分割')
+    await startPpglSegmentation(row.case_id, { device: 'cuda:0', force: retry })
+    ElMessage.success(retry ? '已重新提交 PPGL 肿瘤分割' : '已启动 PPGL 肿瘤分割')
     await loadCases()
-    router.push(`/cases/${caseRoute(caseId)}`)
+    router.push(`/cases/${caseRoute(row.case_id)}`)
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '启动 PPGL 分割失败')
+  }
+}
+
+async function removeCase(row) {
+  try {
+    await ElMessageBox.confirm(
+      `删除病例“${row.case_id}”会同时删除该病例的影像、分割结果、3D 模型和报告，且无法恢复。`,
+      '确认删除病例',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await deleteCase(row.case_id)
+    ElMessage.success('病例已删除')
+    await loadCases()
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err?.response?.data?.detail || '删除病例失败')
   }
 }
 

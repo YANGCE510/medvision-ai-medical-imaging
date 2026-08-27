@@ -36,6 +36,10 @@ export function updateCaseId(caseId, newCaseId) {
   })
 }
 
+export function deleteCase(caseId) {
+  return request.delete(`${AI_API}/cases/${casePath(caseId)}`)
+}
+
 export function startOrganSegmentation(caseId, params = {}) {
   return request.post(`${AI_API}/cases/${casePath(caseId)}/segment/organs`, null, { params })
 }
@@ -58,6 +62,18 @@ export function getPpglResult(caseId) {
 
 export function getPpglMaskUrl(caseId) {
   return `/api${AI_API}/cases/${casePath(caseId)}/ppgl/mask`
+}
+
+export function getPpglMeshUrl(caseId) {
+  return `/api${AI_API}/cases/${casePath(caseId)}/ppgl/mesh`
+}
+
+export function getPpglOrganMeshUrl(caseId, labelId) {
+  return `/api${AI_API}/cases/${casePath(caseId)}/ppgl/mesh/${labelId}`
+}
+
+export function getPpglMeshManifest(caseId) {
+  return request.get(`${AI_API}/cases/${casePath(caseId)}/ppgl/mesh-manifest`)
 }
 
 export function getOverlayUrl(caseId) {

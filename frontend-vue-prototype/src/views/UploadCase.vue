@@ -203,7 +203,7 @@ async function startOrganTask() {
   organSegmenting.value = true
   try {
     await startOrganSegmentation(caseId.value, TOTALSEGMENTATOR_PARAMS)
-    ElMessage.success('已启动 TotalSegmentator 全器官分割')
+    ElMessage.success('已启动全器官分割')
     router.push(`/cases/${caseId.value}`)
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '启动全器官分割失败')
@@ -217,7 +217,7 @@ async function startPpglTask() {
   ppglSegmenting.value = true
   try {
     await startPpglSegmentation(caseId.value, { device: 'cuda:0' })
-    ElMessage.success('已启动 ProgressPatchV5 PPGL 肿瘤分割')
+    ElMessage.success('已启动 PPGL 肿瘤分割')
     router.push(`/cases/${caseId.value}`)
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '启动 PPGL 分割失败')

@@ -316,7 +316,7 @@ def compact_case_context(case_dir: Path) -> dict[str, Any]:
             "segmentation_quality": llm_context.get("segmentation_quality", {}),
         },
         "selected_metrics": {
-            "apr_tumor_volume_ml": metrics.get("apr_tumor_volume_ml"),
+            "tumor_volume_ml": metrics.get("tumor_volume_ml"),
             "tumor_component_count": metrics.get("tumor_component_count"),
             "components": metrics.get("components", [])[:3],
             "anchor_distances_mm": metrics.get("anchor_distances_mm", {}),
@@ -382,7 +382,7 @@ def compact_context_for_small_model_report(context: dict[str, Any]) -> dict[str,
         "origin_assessment": (context.get("llm_context", {}) or {}).get("origin_assessment", {}),
         "segmentation_quality": (context.get("llm_context", {}) or {}).get("segmentation_quality", {}),
         "tumor": {
-            "volume_ml": metrics.get("apr_tumor_volume_ml"),
+            "volume_ml": metrics.get("tumor_volume_ml"),
             "component_count": metrics.get("tumor_component_count"),
             "side": metrics.get("tumor_side_by_nearest_kidney"),
             "components": metrics.get("components", [])[:1],
@@ -430,7 +430,7 @@ def compact_context_for_small_model_chat(context: dict[str, Any]) -> dict[str, A
         "overall_risk": risk.get("overall_level"),
         "surgical_complexity": risk.get("surgical_complexity_level"),
         "segmentation_confidence": risk.get("segmentation_confidence"),
-        "tumor_volume_ml": metrics.get("apr_tumor_volume_ml"),
+        "tumor_volume_ml": metrics.get("tumor_volume_ml"),
         "tumor_component_count": metrics.get("tumor_component_count"),
         "tumor_side": metrics.get("tumor_side_by_nearest_kidney"),
         "largest_component": component,
@@ -1435,7 +1435,7 @@ def direct_ai_report_answer(
     if not (main_reason_intent or other_risk_intent or severity_intent or tumor_size_intent):
         return None
 
-    volume = numeric_value(metrics.get("apr_tumor_volume_ml"))
+    volume = numeric_value(metrics.get("tumor_volume_ml"))
     component_count = numeric_value(metrics.get("tumor_component_count"))
     tumor_data_available = volume is not None or component_count is not None or bool(components) or bool(relations)
     if not tumor_data_available:

@@ -463,7 +463,7 @@ def status_with_pipeline_progress(case_dir: Path) -> dict:
         enriched.update(
             {
                 "status": "completed",
-                "message": status.get("message") or "TotalSegmentator 全器官分割完成",
+                "message": status.get("message") or "全器官分割完成",
                 "progress": 100,
                 "result_path": str(result_path),
             }
@@ -473,7 +473,7 @@ def status_with_pipeline_progress(case_dir: Path) -> dict:
     if status.get("status") in {"completed", "failed"}:
         return status
 
-    log_path = case_dir / "output" / "code_all" / "logs" / "pipeline.log"
+    log_path = case_dir / "output" / "totalseg" / "logs" / "pipeline.log"
     if not log_path.exists():
         status_time = parse_status_time(status.get("updated_at", ""))
         queued_age = (datetime.now() - status_time).total_seconds() if status_time else 0
@@ -502,8 +502,8 @@ def status_with_pipeline_progress(case_dir: Path) -> dict:
     rules = [
         ("[DONE] 2/2", 98, "TotalSegmentator 结果整理完成", "output_done"),
         ("[START] 2/2", 90, "正在合并器官标签并生成结果", "output"),
-        ("[DONE] 1/2", 85, "TotalSegmentator 全器官分割完成", "totalseg_done"),
-        ("[START] 1/2", 15, "正在运行 TotalSegmentator 全器官分割", "totalseg"),
+        ("[DONE] 1/2", 85, "全器官分割完成", "totalseg_done"),
+        ("[START] 1/2", 15, "正在进行全器官分割", "totalseg"),
     ]
 
     enriched = dict(status)
@@ -555,6 +555,40 @@ def load_run_single_case():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.run_single_case
+
+
+def build_ppgl_mesh(output_dir: Path) -> dict:
+    mask_path = output_dir / "tumor_mask.nii.gz"
+    if not mask_path.is_file():
+        raise FileNotFoundError(f"PPGL tumor mask not found: {mask_path}")
+    label_map_path = output_dir / "label_map.json"
+    write_json(label_map_path, {"label_map": {"0": "background", "1": "tumor:ppgl"}})
+    mesh_builder_path = FRONTEND_DIR / "run_totalseg.py"
+    spec = importlib.util.spec_from_file_location("ppgl_mesh_builder", mesh_builder_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load mesh builder: {mesh_builder_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.create_mesh_outputs(mask_path, label_map_path, output_dir)
+
+
+def ensure_ppgl_mesh(case_dir: Path) -> dict:
+    output_dir = case_dir / "output" / "ppgl"
+    manifest_path = output_dir / "meshes" / "mesh_manifest.json"
+    if manifest_path.is_file():
+        return read_json(manifest_path)
+    result_path = output_dir / "result.json"
+    if not result_path.is_file():
+        raise HTTPException(status_code=404, detail="PPGL segmentation result not found")
+    mesh_outputs = build_ppgl_mesh(output_dir)
+    result = read_json(result_path)
+    result.setdefault("outputs", {}).update({
+        "label_map_path": str(output_dir / "label_map.json"),
+        "mesh_glb_path": mesh_outputs["glb_path"],
+        "mesh_manifest_path": mesh_outputs["manifest_path"],
+    })
+    write_json(result_path, result)
+    return read_json(manifest_path)
 
 
 def subprocess_runtime_env() -> dict:
@@ -626,7 +660,7 @@ def run_segmentation_task(
                         child.unlink()
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            update_status(case_dir, "running", "TotalSegmentator 全器官分割正在运行", 10)
+            update_status(case_dir, "running", "正在进行全器官分割", 10)
             unload_chat_model_for_segmentation(model_lifecycle_log)
             try:
                 result = run_single_case(
@@ -643,7 +677,7 @@ def run_segmentation_task(
             update_status(
                 case_dir,
                 "completed",
-                "TotalSegmentator 全器官分割完成",
+                "全器官分割完成",
                 100,
                 result=result,
             )
@@ -653,7 +687,7 @@ def run_segmentation_task(
         update_status(
             case_dir,
             "failed",
-            "TotalSegmentator 分割失败",
+            "全器官分割失败",
             100,
             error=str(exc),
             error_log=str(error_path),
@@ -687,7 +721,7 @@ def run_ppgl_segmentation_task(
             if not PPGL_V5_MODEL_CONFIG.is_file():
                 raise FileNotFoundError(f"PPGL V5 model config not found: {PPGL_V5_MODEL_CONFIG}")
 
-            update_ppgl_status(case_dir, "running", "ProgressPatchV5 PPGL 肿瘤分割正在运行", 10)
+            update_ppgl_status(case_dir, "running", "正在进行肿瘤分割", 10)
             cmd = [
                 sys.executable,
                 str(inference_script),
@@ -730,10 +764,17 @@ def run_ppgl_segmentation_task(
             if not result_path.is_file():
                 raise RuntimeError("ProgressPatchV5 inference did not produce result.json")
             result = read_json(result_path)
+            mesh_outputs = build_ppgl_mesh(output_dir)
+            result.setdefault("outputs", {}).update({
+                "label_map_path": str(output_dir / "label_map.json"),
+                "mesh_glb_path": mesh_outputs["glb_path"],
+                "mesh_manifest_path": mesh_outputs["manifest_path"],
+            })
+            write_json(result_path, result)
             update_ppgl_status(
                 case_dir,
                 "completed",
-                "ProgressPatchV5 PPGL 肿瘤分割完成",
+                "肿瘤分割完成",
                 100,
                 result=result,
             )
@@ -772,7 +813,7 @@ def run_existing_totalseg_task(
 
             cmd = [
                 sys.executable,
-                str(BASE_DIR / "run_otafv2.py"),
+                str(BASE_DIR / "run_totalseg.py"),
                 "--input",
                 str(input_path),
                 "--output",
@@ -808,7 +849,7 @@ def run_existing_totalseg_task(
                 encoding="utf-8",
             )
             if completed.returncode != 0:
-                raise RuntimeError(f"Code_ALL pipeline failed. See log: {log_path}")
+                raise RuntimeError(f"TotalSegmentator pipeline failed. See log: {log_path}")
 
             result_path = output_dir / "result.json"
             result = read_json(result_path) if result_path.exists() else {}
@@ -1097,10 +1138,10 @@ async def start_segmentation(
     if case_id in RUNNING_CASES:
         return read_json(case_dir / "status.json")
     if result_path.exists() and not force:
-        update_status(case_dir, "completed", "TotalSegmentator 全器官分割已完成", 100)
+        update_status(case_dir, "completed", "全器官分割完成", 100)
         return read_json(case_dir / "status.json")
 
-    update_status(case_dir, "queued", "TotalSegmentator 全器官分割任务已提交", 5)
+    update_status(case_dir, "queued", "全器官分割任务已提交", 5)
     background_tasks.add_task(
         run_segmentation_task,
         case_id,
@@ -1169,6 +1210,33 @@ async def get_case_ppgl_mask(case_id: str):
         media_type="application/gzip",
         filename=f"{case_id}_ppgl_tumor.nii.gz",
     )
+
+
+@app.get("/api/cases/{case_id}/ppgl/mesh")
+async def get_case_ppgl_mesh(case_id: str):
+    case_dir = case_dir_for(case_id)
+    ensure_ppgl_mesh(case_dir)
+    mesh_path = case_dir / "output" / "ppgl" / "meshes" / "scene.glb"
+    if not mesh_path.is_file():
+        raise HTTPException(status_code=404, detail="PPGL 3D mesh not found")
+    return FileResponse(mesh_path, media_type="model/gltf-binary", filename=f"{case_id}_ppgl.glb")
+
+
+@app.get("/api/cases/{case_id}/ppgl/mesh/{label_id}")
+async def get_case_ppgl_high_mesh(case_id: str, label_id: int):
+    if label_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid mesh label")
+    case_dir = case_dir_for(case_id)
+    ensure_ppgl_mesh(case_dir)
+    mesh_path = case_dir / "output" / "ppgl" / "meshes" / "organs" / f"{label_id}.glb"
+    if not mesh_path.is_file():
+        raise HTTPException(status_code=404, detail="PPGL high-resolution mesh not found")
+    return FileResponse(mesh_path, media_type="model/gltf-binary", filename=f"{case_id}_ppgl_{label_id}.glb")
+
+
+@app.get("/api/cases/{case_id}/ppgl/mesh-manifest")
+async def get_case_ppgl_mesh_manifest(case_id: str):
+    return ensure_ppgl_mesh(case_dir_for(case_id))
 
 
 @app.get("/api/cases/{case_id}/overlay")

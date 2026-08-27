@@ -8,8 +8,8 @@
 
       <div class="page-header-actions">
         <el-button @click="refresh">刷新</el-button>
-        <el-button v-if="canStartOrgan" @click="startOrganTask">启动全器官分割</el-button>
-        <el-button v-if="canStartPpgl" type="warning" @click="startPpglTask">启动 PPGL 分割</el-button>
+        <el-button v-if="canStartOrgan" @click="startOrganTask">{{ organStatus.status === 'failed' ? '重试全器官分割' : '启动全器官分割' }}</el-button>
+        <el-button v-if="canStartPpgl" type="warning" @click="startPpglTask">{{ ppglStatus.status === 'failed' ? '重试 PPGL 分割' : '启动 PPGL 分割' }}</el-button>
         <el-button @click="go3D">2D / 3D 联合阅片</el-button>
         <el-button @click="goKnowledge">病例 RAG 问答</el-button>
         <el-button type="primary" @click="goReport">查看 AI 报告</el-button>
@@ -134,7 +134,7 @@
         <el-descriptions-item label="进度">{{ ppglStatus.progress || 0 }}%</el-descriptions-item>
         <el-descriptions-item label="模型">{{ ppglResult?.model?.name || 'ProgressPatchV5' }}</el-descriptions-item>
         <el-descriptions-item label="检出肿瘤">{{ tumorDetectedText }}</el-descriptions-item>
-        <el-descriptions-item label="肿瘤体积">{{ formatNumber(ppglMetrics.apr_tumor_volume_ml) }} ml</el-descriptions-item>
+        <el-descriptions-item label="肿瘤体积">{{ formatNumber(ppglMetrics.tumor_volume_ml) }} ml</el-descriptions-item>
         <el-descriptions-item label="最大径">{{ formatNumber(ppglMetrics.max_diameter_mm) }} mm</el-descriptions-item>
         <el-descriptions-item label="病灶数">{{ ppglMetrics.tumor_component_count ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="侧别">{{ sideText }}</el-descriptions-item>
@@ -365,9 +365,10 @@ async function refresh() {
 }
 
 async function startOrganTask() {
+  const retry = organStatus.value.status === 'failed'
   try {
-    await startOrganSegmentation(caseId, TOTALSEGMENTATOR_PARAMS)
-    ElMessage.success('已启动全器官分割任务')
+    await startOrganSegmentation(caseId, { ...TOTALSEGMENTATOR_PARAMS, force: retry })
+    ElMessage.success(retry ? '已重新提交全器官分割任务' : '已启动全器官分割任务')
     await loadStatus()
     ensurePolling()
   } catch (err) {
@@ -376,9 +377,10 @@ async function startOrganTask() {
 }
 
 async function startPpglTask() {
+  const retry = ppglStatus.value.status === 'failed'
   try {
-    await startPpglSegmentation(caseId, { device: 'cuda:0' })
-    ElMessage.success('已启动 PPGL 肿瘤分割任务')
+    await startPpglSegmentation(caseId, { device: 'cuda:0', force: retry })
+    ElMessage.success(retry ? '已重新提交 PPGL 肿瘤分割任务' : '已启动 PPGL 肿瘤分割任务')
     await loadStatus()
     ensurePolling()
   } catch (err) {

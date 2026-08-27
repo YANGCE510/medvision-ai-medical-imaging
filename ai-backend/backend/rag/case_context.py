@@ -108,7 +108,7 @@ def load_case_context(case_dir: Path, question: str) -> dict:
     organs = summary.get("organs") or metrics.get("organs") or {}
     segmentation = result.get("segmentation") or {}
 
-    tumor_volume = metrics.get("apr_tumor_volume_ml")
+    tumor_volume = metrics.get("tumor_volume_ml")
     tumor_components = metrics.get("components") or []
     tumor_available = ppgl_result_path.is_file() or tumor_volume is not None or bool(tumor_components) or bool(segmentation.get("tumor_priority"))
 

@@ -1,6 +1,6 @@
-# Code_ALL
+# PPGL AI Backend
 
-Unified local PPGL inference pipeline for the Jetson AGX Orin deployment.
+FastAPI 内部 AI 服务，提供全器官分割、PPGL 肿瘤分割、3D 产物、RAG 检索与 AI 报告能力。
 
 FastAPI is the internal AI service. It owns model execution, AI task workspaces, generated artifacts,
 RAG retrieval, and report generation. User login, roles, business records, and the public API belong to
@@ -16,8 +16,7 @@ mkdir -p "$PPGL_DATA_ROOT"/{cases,logs,rag-documents,rag-index,rag-parsed}
 FastAPI uses `$PPGL_DATA_ROOT/cases` for AI case workspaces by default. RAG documents, parsed chunks, and Qdrant
 indexes can be overridden with `PPGL_RAG_DOCUMENTS_DIR`, `PPGL_RAG_CHUNKS_PATH`, and `PPGL_QDRANT_PATH`.
 
-The current Web PPGL task uses the repository-contained ProgressPatchV5 runtime at
-`ai-backend/progress_patch_v5/`. Its default checkpoint location is
+PPGL 分割任务使用仓库内的推理运行时 `ai-backend/progress_patch_v5/`，默认权重位置为
 `ai-backend/progress_patch_v5/weights/model_best.pth`.
 
 The entrypoint is:
@@ -26,11 +25,13 @@ The entrypoint is:
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ppgl-gpu38
 
-python ai-backend/run_case_pipeline.py \
+python ai-backend/run_totalseg_pipeline.py \
   --case-id PPGL_Tr_0029 \
   --image demo-data/PPGL_Tr_0029.nii.gz \
   --mode jetson_fast
 ```
+
+全器官与 PPGL 分割是独立任务：全器官任务只运行 TotalSegmentator；PPGL 任务生成肿瘤 mask、量化指标和独立 3D mesh。失败任务可通过 Web 页面强制重试。
 
 Default output root:
 
@@ -40,14 +41,15 @@ $PPGL_DATA_ROOT/cases
 
 ## One-command web startup
 
-Start local MiniCPM chat, FastAPI backend, and Vite frontend:
+Start Ollama, FastAPI backend, and Vite frontend:
 
 ```bash
 ./ai-backend/start_ppgl_ai.sh
 ```
 
-The script will prompt for `REPORT_OPENAI_BASE_URL` and `REPORT_OPENAI_API_KEY` if they are not already set.
-To avoid typing the online model settings every time, create `ai-backend/.env`:
+启动脚本读取仓库根目录 `.env` 或 `ai-backend/.env`。真实密钥、模型地址和运行数据目录应通过环境变量配置，不能提交到 Git。
+
+例如，配置兼容 OpenAI 的在线模型时可在 `ai-backend/.env` 中填写：
 
 ```bash
 REPORT_OPENAI_BASE_URL=http://127.0.0.1:2456
@@ -56,7 +58,7 @@ REPORT_OPENAI_REASONING_EFFORT=xhigh
 REPORT_OPENAI_API_KEY=your_key
 ```
 
-Then run the startup script and enter only the API key when prompted. The frontend URL is printed at the end.
+前端访问地址会在脚本启动完成后打印。
 
 ## Generic streaming chat API
 
@@ -152,15 +154,7 @@ Prompt for the Web-system developer:
    - Jetson 只负责基于传入上下文进行本地模型推理并返回回答。
 ```
 
-Legacy OTAFV2 pipeline stages:
-
-1. GCPV5 tumor inference.
-2. TotalSegmentator anatomy inference.
-3. APR false-positive filtering using TotalSegmentator anatomy anchors.
-4. Final fusion with tumor priority.
-5. Basic clinical metrics and markdown report.
-
-Modes:
+TotalSegmentator modes:
 
 - `jetson_fast`: TotalSegmentator only segments `kidney_left`, `kidney_right`, and `aorta`.
 - `abdomen`: TotalSegmentator segments a practical abdominal ROI subset.
@@ -168,46 +162,10 @@ Modes:
 
 For edge deployment, use `jetson_fast` first. Use `full_total` only when full visible-organ output is required.
 
-Jetson inference keeps the PyTorch path by default and enables GCPV5 AMP plus TF32 for speed. For strict A/B
-validation runs, add `--no-gcp-amp --no-allow-tf32`.
-
-## Experimental GCPV5 TensorRT backend
-
-The TensorRT path is intentionally opt-in and only replaces the GCPV5 tumor UNet forward pass. TotalSegmentator,
-preprocessing, APR, fusion, and reporting stay unchanged.
-
-Build the fixed ROI-160 engine:
+If TotalSegmentator masks have already been generated elsewhere, reuse them without rerunning inference:
 
 ```bash
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate ppgl-gpu38
-export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
-
-python ai-backend/export_gcpv5_trt.py \
-  --roi-size 160
-```
-
-If export fails with `Python package 'onnx' is required`, install an offline/prebuilt `onnx` wheel into `ppgl-gpu38`
-first. The current Jetson image already has `trtexec` and system TensorRT Python bindings.
-
-Run a case with the TensorRT GCPV5 backend:
-
-```bash
-python ai-backend/run_case_pipeline.py \
-  --case-id PPGL_Tr_0029 \
-  --image demo-data/PPGL_Tr_0029.nii.gz \
-  --mode jetson_fast \
-  --gcp-backend trt \
-  --gcp-engine ai-backend/engines/gcpv5/gcpv5_roi160_fp16.engine
-```
-
-Web API runs can pass `gcp_backend=trt` and `gcp_engine=ai-backend/engines/gcpv5/gcpv5_roi160_fp16.engine`.
-
-If TotalSegmentator masks have already been generated elsewhere, keep the new run self-contained while avoiding
-rerunning TotalSegmentator:
-
-```bash
-python ai-backend/run_case_pipeline.py \
+python ai-backend/run_totalseg_pipeline.py \
   --case-id PPGL_Tr_0029 \
   --image demo-data/PPGL_Tr_0029.nii.gz \
   --mode jetson_fast \

@@ -122,7 +122,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
-import { getMeshManifest, getMeshUrl, getOrganMeshUrl } from '../api/caseApi'
+import { getMeshManifest, getMeshUrl, getOrganMeshUrl, getPpglMeshManifest, getPpglMeshUrl, getPpglOrganMeshUrl } from '../api/caseApi'
 import TwoDViewer from './TwoDViewer.vue'
 
 const route = useRoute()
@@ -189,6 +189,29 @@ function displayName(name) {
     'colon': '结肠',
     'iliopsoas_left': '左髂腰肌',
     'iliopsoas_right': '右髂腰肌',
+    'autochthon_left': '左侧固有背肌',
+    'autochthon_right': '右侧固有背肌',
+    'costal_cartilages': '肋软骨',
+    'esophagus': '食管',
+    'gallbladder': '胆囊',
+    'gluteus_medius_left': '左臀中肌',
+    'gluteus_medius_right': '右臀中肌',
+    'heart': '心脏',
+    'atrial_appendage_left': '左心耳',
+    'hip_left': '左髋骨',
+    'hip_right': '右髋骨',
+    'lung_upper_lobe_left': '左肺上叶',
+    'lung_lower_lobe_left': '左肺下叶',
+    'lung_middle_lobe_right': '右肺中叶',
+    'lung_upper_lobe_right': '右肺上叶',
+    'lung_lower_lobe_right': '右肺下叶',
+    'pulmonary_vein': '肺静脉',
+    'superior_vena_cava': '上腔静脉',
+    'sacrum': '骶骨',
+    'scapula_left': '左肩胛骨',
+    'scapula_right': '右肩胛骨',
+    'spinal_cord': '脊髓',
+    'sternum': '胸骨',
     'iliac_artery_left': '左髂动脉',
     'iliac_artery_right': '右髂动脉',
     'iliac_vena_left': '左髂静脉',
@@ -196,7 +219,13 @@ function displayName(name) {
   }
   if (String(name || '').startsWith('tumor:')) return '肿瘤'
   const raw = String(name || '').split(':').pop()
-  if (raw.startsWith('vertebrae_')) return raw.replace('vertebrae_', '椎体 ')
+  const rib = raw.match(/^rib_(left|right)_(\d+)$/)
+  if (rib) return `${rib[1] === 'left' ? '左' : '右'}第${rib[2]}肋骨`
+  const vertebra = raw.match(/^vertebrae_([CLTS])(\d+)$/)
+  if (vertebra) {
+    const sections = { C: '颈椎', T: '胸椎', L: '腰椎', S: '骶椎' }
+    return `第${vertebra[2]}${sections[vertebra[1]]}`
+  }
   return organNames[raw] || raw.replaceAll('_', ' ')
 }
 
@@ -716,7 +745,10 @@ async function loadHighResolutionMesh(item, notify = true) {
   if (item.highLoading || item.highLoaded || !modelRoot) return false
   item.highLoading = true
   try {
-    const gltf = await loadGlb(`${getOrganMeshUrl(caseId, item.label_id)}?t=${Date.now()}`)
+    const meshUrl = item.meshSource === 'ppgl'
+      ? getPpglOrganMeshUrl(caseId, item.label_id)
+      : getOrganMeshUrl(caseId, item.label_id)
+    const gltf = await loadGlb(`${meshUrl}?t=${Date.now()}`)
     const highMeshes = []
     gltf.scene.traverse(child => {
       if (!child.isMesh) return
@@ -783,32 +815,44 @@ async function loadViewer() {
     await nextTick()
     initScene()
 
-    const manifest = await getMeshManifest(caseId)
+    const [organResult, ppglResult] = await Promise.allSettled([
+      getMeshManifest(caseId),
+      getPpglMeshManifest(caseId)
+    ])
     if (sequence !== loadSequence) return
-    overviewSize.value = Number(manifest.overview_file_size || 0)
-    meshList.value = (manifest.meshes || []).map(item => ({
-      ...item,
-      visible: item.visible_by_default !== false,
-      highLoading: false,
-      highLoaded: false
-    }))
+    const meshSources = []
+    if (organResult.status === 'fulfilled') meshSources.push({ source: 'organ', manifest: organResult.value, url: getMeshUrl(caseId) })
+    if (ppglResult.status === 'fulfilled') meshSources.push({ source: 'ppgl', manifest: ppglResult.value, url: getPpglMeshUrl(caseId) })
+    if (!meshSources.length) throw new Error('当前病例没有可加载的三维模型，请先完成全器官分割或 PPGL 分割')
+    overviewSize.value = meshSources.reduce((sum, item) => sum + Number(item.manifest.overview_file_size || 0), 0)
+    meshList.value = meshSources
+      .flatMap(item => (item.manifest.meshes || []).map(mesh => ({
+        ...mesh,
+        meshSource: item.source,
+        visible: mesh.visible_by_default !== false,
+        highLoading: false,
+        highLoaded: false
+      })))
+      .sort((left, right) => Number(isTumorName(right.name)) - Number(isTumorName(left.name)))
     indexMeshNames(meshList.value)
 
     clearModel()
-    const gltf = await loadGlb(`${getMeshUrl(caseId)}?t=${Date.now()}`)
-    if (sequence !== loadSequence) return
+    modelRoot = new THREE.Group()
     loadingMessage.value = '正在创建三维场景'
-    modelRoot = gltf.scene
-
-    modelRoot.traverse(child => {
-      if (!child.isMesh) return
-      const name = resolveMeshName(sourceMeshName(child))
-      prepareLoadedMesh(child, name)
-      child.userData.organName = name
-      overviewObjects.set(name, child)
-      meshObjects.set(name, child)
-      meshObjects.set(gltfSafeName(name), child)
-    })
+    for (const item of meshSources) {
+      const gltf = await loadGlb(`${item.url}?t=${Date.now()}`)
+      if (sequence !== loadSequence) return
+      gltf.scene.traverse(child => {
+        if (!child.isMesh) return
+        const name = resolveMeshName(sourceMeshName(child))
+        prepareLoadedMesh(child, name)
+        child.userData.organName = name
+        overviewObjects.set(name, child)
+        meshObjects.set(name, child)
+        meshObjects.set(gltfSafeName(name), child)
+      })
+      modelRoot.add(gltf.scene)
+    }
 
     scene.add(modelRoot)
     applyTransparencyMode()

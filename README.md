@@ -31,6 +31,7 @@ PPGL Assist 是一个面向嗜铬细胞瘤/副神经节瘤（PPGL）场景的智
 - 医疗数据访问控制：Spring Boot 统一处理登录、JWT、角色校验和病例权限，浏览器不直接访问 AI 服务。
 - AI 能力解耦：全器官分割与 PPGL 肿瘤分割拆分为独立能力，便于替换模型和扩展推理流程。
 - 自研模型接入：已将 PPGL 肿瘤分割推理代码纳入仓库，支持通过相对路径加载权重。
+- 独立 3D 可视化：全器官与 PPGL 肿瘤均生成独立 mesh，可联合加载；历史病例会按需补生成肿瘤 mesh。
 - RAG 问答与报告生成：支持医学知识库检索、病例上下文组装、报告生成和报告问答。
 - 求职展示友好：代码仓库排除了权重、医学影像、运行结果、日志、构建产物和私有配置。
 
@@ -59,11 +60,13 @@ FastAPI（8000）
 
 - 医生/患者/管理员登录与角色区分
 - CT 病例上传、病例列表、病例详情
+- 病例删除、编号修改，以及失败任务的强制重试
 - 病例权限隔离与文件网关访问
 - 全器官分割任务
 - PPGL 肿瘤分割任务
 - 分割结果指标展示
 - 2D/3D 医学影像查看
+- 3D 结构中文显示与肿瘤优先展示
 - AI 辅助报告生成
 - 报告问答与流式输出
 - RAG 医学知识库检索与评估样例
@@ -75,8 +78,7 @@ FastAPI（8000）
 .
 ├── frontend-vue-prototype/  # Vue 3 + Vite Web 前端
 ├── frontend-javaweb/        # Spring Boot 业务后端、静态页面、小程序原型
-├── ai-backend/              # FastAPI AI 服务、RAG、报告、ProgressPatchV5 推理
-├── pipeline-otafv2/         # OTAFV2 推理流水线
+├── ai-backend/              # FastAPI AI 服务、RAG、报告、全器官与 PPGL 分割推理
 ├── envs/                    # Conda 推理环境配置
 ├── docs/                    # 项目状态说明
 ├── WEIGHTS_AND_DATA.md      # 权重和数据放置说明
@@ -108,37 +110,42 @@ conda activate ppgl
 
 ## 快速启动
 
-先指定项目外的数据目录。运行数据、上传文件、病例产物、RAG 索引和日志都应放在这里，不要和代码仓库混在一起。
+先复制配置模板并指定项目外的数据目录。运行数据、上传文件、病例产物、RAG 索引和日志都应放在这里，不要和代码仓库混在一起。
 
 ```bash
-export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
+cp .env.example .env
+# 编辑 .env：填写 MYSQL_PASSWORD、PPGL_AUTH_JWT_SECRET、PPGL_INTERNAL_API_KEY，
+# 并将 PPGL_DATA_ROOT 改为本机项目外的可写目录。
+
+set -a
+source .env
+set +a
+
 mkdir -p "$PPGL_DATA_ROOT"/{uploads,jobs,cases,logs,rag-documents,rag-index,rag-parsed}
 ```
 
-也可以复制 `.env.example` 为本地 `.env` 后填写真实值。真实 `.env` 不要提交到 Git。
+真实 `.env` 不要提交到 Git。
 
-### 1. 启动 FastAPI AI 服务
+### 1. 启动 AI 服务和 Vue 前端
 
 ```bash
-cd ai-backend/backend
+set -a
+source .env
+set +a
 
-export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
-export PPGL_INTERNAL_API_KEY=change-this-in-local-env
-
-uvicorn main:app --host 127.0.0.1 --port 8000
+bash ai-backend/start_ppgl_ai.sh
 ```
+
+该脚本会启动 Ollama、FastAPI（8000）和 Vue（5173）。需要先在 `ppgl` Conda 环境中安装 TotalSegmentator，并在本机准备配置的 Ollama 模型。
 
 ### 2. 启动 Spring Boot 业务后端
 
 ```bash
+set -a
+source .env
+set +a
+
 cd frontend-javaweb
-
-export MYSQL_USER=root
-export MYSQL_PASSWORD=your_mysql_password
-export PPGL_DATA_ROOT=/mnt/20T/ppgl-assist-data
-export PPGL_AUTH_JWT_SECRET=change-this-to-a-random-string-at-least-32-bytes
-export PPGL_INTERNAL_API_KEY=change-this-in-local-env
-
 mvn spring-boot:run
 ```
 
@@ -154,16 +161,23 @@ http://127.0.0.1:8080/
 frontend-javaweb/src/main/resources/schema.sql
 ```
 
-### 3. 启动 Vue Web 前端
+### 3. 初始化 RAG 知识库（首次运行）
 
 ```bash
 cd frontend-vue-prototype
+cp --update=none ../ai-backend/knowledge_base/documents/* "$PPGL_DATA_ROOT/rag-documents/"
 
-npm install
-npm run dev
+cd ../ai-backend
+python -m backend.rag.build_chunks \
+  --documents "$PPGL_DATA_ROOT/rag-documents" \
+  --output "$PPGL_DATA_ROOT/rag-parsed/chunks.jsonl"
+
+python -c 'from backend.rag.vector_store import build_vector_index; print(build_vector_index(device="cuda", batch_size=16))'
 ```
 
-访问 Vue：
+如无 GPU，可将 `device="cuda"` 改为 `device="cpu"`，但构建会明显更慢。构建完成后刷新知识库页面即可使用。
+
+访问地址：
 
 ```text
 http://127.0.0.1:5173/
@@ -174,10 +188,10 @@ http://127.0.0.1:5173/
 公开仓库不包含模型权重、真实医学影像和运行输出。完整运行推理前，需要在本地准备以下资产：
 
 - PPGL 分割权重，默认位置：`ai-backend/progress_patch_v5/weights/model_best.pth`。该权重暂不随代码仓库发布，后续将上传至 Hugging Face，并在此处补充下载链接。
-- OTAFV2 / nnUNet / TotalSegmentator 所需权重和运行环境
+- TotalSegmentator 所需权重和运行环境
 - 已授权、已脱敏的 `.nii.gz` 测试影像
 
-ProgressPatchV5 也支持通过环境变量覆盖模型路径：
+PPGL 分割运行时也支持通过环境变量覆盖模型路径：
 
 ```bash
 export PPGL_V5_CHECKPOINT=ai-backend/progress_patch_v5/weights/model_best.pth

@@ -4,7 +4,7 @@ import sys
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent
-RUN_OTAFV2 = FRONTEND_DIR / "run_otafv2.py"
+RUN_TOTALSEG = FRONTEND_DIR / "run_totalseg.py"
 
 
 def run_single_case(
@@ -39,7 +39,7 @@ def run_single_case(
 
     cmd = [
         sys.executable,
-        str(RUN_OTAFV2),
+        str(RUN_TOTALSEG),
         "--input",
         str(input_path),
         "--output",

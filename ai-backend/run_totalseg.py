@@ -16,9 +16,8 @@ import numpy as np
 from PIL import Image
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent
-CODE_ALL_DIR = FRONTEND_DIR
-CODE_ALL_PIPELINE = CODE_ALL_DIR / "run_case_pipeline.py"
+BACKEND_DIR = Path(__file__).resolve().parent
+TOTALSEG_PIPELINE = BACKEND_DIR / "run_totalseg_pipeline.py"
 
 
 def normalize_case_id(path: Path) -> str:
@@ -118,16 +117,16 @@ def create_overlay_png(image_path: Path, mask_path: Path, label_map_path: Path, 
     Image.fromarray(rgb).save(output_path)
 
 
-def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Path:
-    if not CODE_ALL_PIPELINE.exists():
-        raise FileNotFoundError(f"Code_ALL pipeline not found: {CODE_ALL_PIPELINE}")
+def run_totalseg(args: argparse.Namespace, case_id: str, output_dir: Path) -> Path:
+    if not TOTALSEG_PIPELINE.exists():
+        raise FileNotFoundError(f"TotalSegmentator pipeline not found: {TOTALSEG_PIPELINE}")
 
     _device, totalseg_device = resolve_device(args.device)
     run_root = output_dir
-    run_name = "code_all"
+    run_name = "totalseg"
     cmd = [
         sys.executable,
-        str(CODE_ALL_PIPELINE),
+        str(TOTALSEG_PIPELINE),
         "--case-id",
         case_id,
         "--image",
@@ -153,12 +152,12 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
 
     completed = subprocess.run(
         cmd,
-        cwd=str(CODE_ALL_DIR),
+        cwd=str(BACKEND_DIR),
         env=subprocess_runtime_env(),
         text=True,
         capture_output=True,
     )
-    log_path = output_dir / "run_otafv2_subprocess.log"
+    log_path = output_dir / "run_totalseg_subprocess.log"
     log_path.write_text(
         "COMMAND:\n"
         + " ".join(cmd)
@@ -169,7 +168,7 @@ def run_code_all(args: argparse.Namespace, case_id: str, output_dir: Path) -> Pa
         encoding="utf-8",
     )
     if completed.returncode != 0:
-        raise RuntimeError(f"Code_ALL pipeline failed. See log: {log_path}")
+        raise RuntimeError(f"TotalSegmentator pipeline failed. See log: {log_path}")
     return run_root / run_name
 
 
@@ -204,7 +203,7 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
             "mask_path": str(mask_path),
             "overlay_path": str(overlay_path),
             "result_path": str(result_path),
-            "code_all_run_dir": str(run_dir),
+            "totalseg_run_dir": str(run_dir),
             "label_map_path": str(label_map_path),
             "clinical_metrics_path": str(metrics_path),
             "report_path": str(report_path) if report_path.exists() else "",
@@ -254,7 +253,7 @@ def main() -> None:
 
     args.output.mkdir(parents=True, exist_ok=True)
     case_id = args.case_id.strip() or normalize_case_id(args.input)
-    run_dir = run_code_all(args, case_id, args.output)
+    run_dir = run_totalseg(args, case_id, args.output)
     result = collect_outputs(case_id, args.input, args.output, run_dir)
     print(json.dumps({"status": "completed", "result_path": result["outputs"]["result_path"]}, ensure_ascii=False))
 

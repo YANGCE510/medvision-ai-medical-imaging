@@ -458,7 +458,7 @@ Required layout:
 Avoid:
 
 - Long technical reports.
-- Raw labels such as `apr_tumor_volume_ml`.
+- Raw labels such as `tumor_volume_ml`.
 - Diagnostic certainty language.
 
 ## Report Detail Guidance

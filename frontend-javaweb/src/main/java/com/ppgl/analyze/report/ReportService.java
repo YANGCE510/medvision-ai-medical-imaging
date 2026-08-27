@@ -476,7 +476,7 @@ public class ReportService {
 
     private ObjectNode metricsContext(ObjectNode metrics) {
         ObjectNode summary = objectMapper.createObjectNode();
-        copy(summary, "tumor_volume_ml", metrics, "apr_tumor_volume_ml");
+        copy(summary, "tumor_volume_ml", metrics, "tumor_volume_ml");
         copy(summary, "tumor_component_count", metrics, "tumor_component_count");
         copy(summary, "tumor_side_by_nearest_kidney", metrics, "tumor_side_by_nearest_kidney");
         copy(summary, "origin_assessment", metrics, "origin_assessment");
@@ -486,7 +486,7 @@ public class ReportService {
         if (tumorBurden.isObject()) {
             copy(summary, "max_diameter_mm", tumorBurden, "max_diameter_mm");
             copy(summary, "equivalent_sphere_diameter_mm", tumorBurden, "equivalent_sphere_diameter_mm");
-            copy(summary, "multifocal_after_apr", tumorBurden, "multifocal_after_apr");
+            copy(summary, "multifocal", tumorBurden, "multifocal");
         }
         return summary;
     }
@@ -617,17 +617,17 @@ public class ReportService {
         ObjectNode summary = parseJsonObject(record.summaryJson());
         ObjectNode result = parseJsonObject(readText(record.resultJsonPath()));
         JsonNode value = firstJsonValue(
-                metrics.path("apr_tumor_volume_ml"),
-                metrics.path("tumor_burden").path("apr_tumor_volume_ml"),
+                metrics.path("tumor_volume_ml"),
+                metrics.path("tumor_burden").path("tumor_volume_ml"),
                 metrics.path("tumor_burden").path("raw_tumor_volume_ml"),
-                summary.path("clinical_metrics").path("apr_tumor_volume_ml"),
-                summary.path("clinical_metrics").path("tumor_burden").path("apr_tumor_volume_ml"),
-                summary.path("tumor_burden").path("apr_tumor_volume_ml"),
+                summary.path("clinical_metrics").path("tumor_volume_ml"),
+                summary.path("clinical_metrics").path("tumor_burden").path("tumor_volume_ml"),
+                summary.path("tumor_burden").path("tumor_volume_ml"),
                 summary.path("tumorVolumeMl"),
                 summary.path("tumor_volume_ml"),
-                result.path("clinical_metrics").path("apr_tumor_volume_ml"),
-                result.path("clinical_metrics").path("tumor_burden").path("apr_tumor_volume_ml"),
-                result.path("tumor_burden").path("apr_tumor_volume_ml"),
+                result.path("clinical_metrics").path("tumor_volume_ml"),
+                result.path("clinical_metrics").path("tumor_burden").path("tumor_volume_ml"),
+                result.path("tumor_burden").path("tumor_volume_ml"),
                 result.path("tumorVolumeMl"),
                 result.path("tumor_volume_ml")
         );

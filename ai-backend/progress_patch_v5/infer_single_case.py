@@ -387,9 +387,9 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
 
     tumor_voxels = int(np.count_nonzero(tumor))
     metrics = {
-        "apr_tumor_voxels": tumor_voxels,
-        "apr_tumor_volume_mm3": round(tumor_voxels * voxel_volume_mm3, 3),
-        "apr_tumor_volume_ml": round(tumor_voxels * voxel_volume_mm3 / 1000.0, 3),
+        "tumor_voxels": tumor_voxels,
+        "tumor_volume_mm3": round(tumor_voxels * voxel_volume_mm3, 3),
+        "tumor_volume_ml": round(tumor_voxels * voxel_volume_mm3 / 1000.0, 3),
         "tumor_component_count": len(components),
         "tumor_side_by_nearest_kidney": side,
         "components": components,

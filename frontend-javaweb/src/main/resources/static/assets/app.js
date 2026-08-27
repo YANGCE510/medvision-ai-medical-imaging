@@ -403,7 +403,7 @@ createApp({
                 {
                     label: "平均体积",
                     value: averageVolume == null ? "-" : `${formatCompactNumber(averageVolume)} ml`,
-                    note: "APR 后肿瘤"
+                    note: "肿瘤"
                 },
                 {
                     label: "高风险占比",
@@ -1395,13 +1395,13 @@ createApp({
             const summary = parseJsonObject(report?.summaryJson);
             const result = parseJsonObject(report?.resultJson);
             const value = firstValue(
-                    metrics?.apr_tumor_volume_ml,
-                    metrics?.tumor_burden?.apr_tumor_volume_ml,
+                    metrics?.tumor_volume_ml,
+                    metrics?.tumor_burden?.tumor_volume_ml,
                     metrics?.tumor_burden?.raw_tumor_volume_ml,
-                    summary?.clinical_metrics?.apr_tumor_volume_ml,
-                    summary?.clinical_metrics?.tumor_burden?.apr_tumor_volume_ml,
-                    result?.clinical_metrics?.apr_tumor_volume_ml,
-                    result?.clinical_metrics?.tumor_burden?.apr_tumor_volume_ml
+                    summary?.clinical_metrics?.tumor_volume_ml,
+                    summary?.clinical_metrics?.tumor_burden?.tumor_volume_ml,
+                    result?.clinical_metrics?.tumor_volume_ml,
+                    result?.clinical_metrics?.tumor_burden?.tumor_volume_ml
             );
             return formatTumorVolume(value);
         }
@@ -1507,7 +1507,7 @@ createApp({
             low: "低",
             major_vessel: "大血管",
             moderate: "中等",
-            multifocal_after_apr: "APR 后多灶",
+            multifocal: "多灶",
             near_10mm: "10mm 内邻近",
             overlap: "重叠",
             pancreas: "胰腺",
@@ -1636,12 +1636,12 @@ createApp({
             const { metrics, clinicalMetrics } = reportJsonBundle(report);
             const tumorBurden = firstObject(metrics?.tumor_burden, clinicalMetrics?.tumor_burden);
             return [
-                { label: "APR 体积", value: formatVolume(firstValue(tumorBurden?.apr_tumor_volume_ml, metrics?.apr_tumor_volume_ml, clinicalMetrics?.apr_tumor_volume_ml)) },
+                { label: "肿瘤体积", value: formatVolume(firstValue(tumorBurden?.tumor_volume_ml, metrics?.tumor_volume_ml, clinicalMetrics?.tumor_volume_ml)) },
                 { label: "原始体积", value: formatVolume(firstValue(tumorBurden?.raw_tumor_volume_ml, metrics?.raw_tumor_volume_ml, clinicalMetrics?.raw_tumor_volume_ml)) },
                 { label: "最大径", value: formatDistance(tumorBurden?.max_diameter_mm) },
                 { label: "等效球径", value: formatDistance(tumorBurden?.equivalent_sphere_diameter_mm) },
                 { label: "组件数量", value: formatInteger(firstValue(tumorBurden?.component_count, metrics?.tumor_component_count, clinicalMetrics?.tumor_component_count)) },
-                { label: "多灶提示", value: formatBoolean(tumorBurden?.multifocal_after_apr) }
+                { label: "多灶提示", value: formatBoolean(tumorBurden?.multifocal) }
             ];
         }
 
@@ -1681,9 +1681,8 @@ createApp({
             const quality = firstObject(metrics?.segmentation_quality, clinicalMetrics?.segmentation_quality);
             return [
                 { label: "置信度", value: formatReadableKey(firstValue(quality?.confidence, risk?.segmentation_confidence)) },
-                { label: "APR 体素", value: formatInteger(firstValue(metrics?.apr_tumor_voxels, clinicalMetrics?.apr_tumor_voxels, metrics?.tumor_burden?.apr_tumor_voxels)) },
-                { label: "原始体素", value: formatInteger(firstValue(metrics?.raw_tumor_voxels, clinicalMetrics?.raw_tumor_voxels, metrics?.tumor_burden?.raw_tumor_voxels)) },
-                { label: "移除比例", value: formatPercent(firstValue(quality?.apr_removed_ratio, metrics?.apr_removed_ratio, clinicalMetrics?.apr_removed_ratio)) }
+                { label: "肿瘤体素", value: formatInteger(firstValue(metrics?.tumor_voxels, clinicalMetrics?.tumor_voxels, metrics?.tumor_burden?.tumor_voxels)) },
+                { label: "原始体素", value: formatInteger(firstValue(metrics?.raw_tumor_voxels, clinicalMetrics?.raw_tumor_voxels, metrics?.tumor_burden?.raw_tumor_voxels)) }
             ];
         }
 
