@@ -2,8 +2,11 @@ package com.ppgl.analyze.auth;
 
 import java.util.Locale;
 import java.util.regex.Pattern;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
@@ -20,7 +23,43 @@ public class AuthService {
         this.userRepository = userRepository;
     }
 
+    public boolean setupRequired() {
+        return !userRepository.hasUsers();
+    }
+
+    @Transactional
+    public synchronized UserResponse setupFirstDoctor(SetupRequest request) {
+        if (userRepository.hasUsers()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "系统已完成初始化，请直接登录");
+        }
+
+        String username = normalize(request.username());
+        String password = request.password() == null ? "" : request.password();
+        String displayName = blankToDefault(request.displayName(), username);
+        String phone = normalize(request.phone());
+
+        validateUsername(username);
+        validatePassword(password);
+        validatePhone(phone);
+
+        String passwordHash = passwordEncoder.encode(password);
+        UserAccount user = userRepository.create(
+                username,
+                passwordHash,
+                displayName,
+                null,
+                phone,
+                null,
+                UserRole.DOCTOR
+        );
+        return UserResponse.from(user);
+    }
+
     public UserResponse register(RegisterRequest request) {
+        if (!userRepository.hasUsers()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先完成系统初始化并创建第一个医生账号");
+        }
+
         String username = normalize(request.username());
         String password = request.password() == null ? "" : request.password();
         String displayName = blankToDefault(request.displayName(), username);

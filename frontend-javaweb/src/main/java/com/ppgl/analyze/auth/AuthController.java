@@ -25,6 +25,17 @@ public class AuthController {
         this.authTokenService = authTokenService;
     }
 
+    @GetMapping("/setup-status")
+    public ApiResponse<SetupStatusResponse> setupStatus() {
+        return ApiResponse.ok("查询成功", new SetupStatusResponse(authService.setupRequired()));
+    }
+
+    @PostMapping("/setup")
+    public ResponseEntity<ApiResponse<AuthSessionResponse>> setup(@RequestBody SetupRequest request) {
+        UserResponse user = authService.setupFirstDoctor(request);
+        return authenticatedResponse(HttpStatus.CREATED, "初始化成功", user);
+    }
+
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthSessionResponse>> register(@RequestBody RegisterRequest request) {
         UserResponse user = authService.register(request);

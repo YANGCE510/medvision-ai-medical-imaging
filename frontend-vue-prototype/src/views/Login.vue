@@ -3,11 +3,30 @@
     <div class="login-card">
       <div class="login-mark">PPGL-AI</div>
       <h1>PPGL 智能分割与三维辅助分析系统</h1>
-      <p class="subtitle">AI Segmentation & 3D Visualization Platform</p>
+      <p class="subtitle">
+        {{ setupRequired ? '首次使用，请创建第一个医生账号' : 'AI Segmentation & 3D Visualization Platform' }}
+      </p>
 
-      <el-form class="login-form">
+      <el-alert
+        v-if="setupRequired"
+        class="setup-alert"
+        title="初始化完成后，该入口会自动关闭"
+        type="info"
+        :closable="false"
+        show-icon
+      />
+
+      <el-form v-if="!checkingSetup" class="login-form" @submit.prevent="handleSubmit">
+        <el-form-item v-if="setupRequired">
+          <el-input v-model="displayName" placeholder="医生姓名" size="large" maxlength="80" />
+        </el-form-item>
+
         <el-form-item>
-          <el-input v-model="username" placeholder="请输入账号" size="large" />
+          <el-input v-model="username" placeholder="请输入账号" size="large" maxlength="32" />
+        </el-form-item>
+
+        <el-form-item v-if="setupRequired">
+          <el-input v-model="phone" placeholder="手机号" size="large" maxlength="11" />
         </el-form-item>
 
         <el-form-item>
@@ -20,16 +39,34 @@
           />
         </el-form-item>
 
-        <el-button type="primary" size="large" class="login-button" :loading="submitting" @click="handleLogin">
-          登录系统
+        <el-form-item v-if="setupRequired">
+          <el-input
+            v-model="confirmPassword"
+            placeholder="请再次输入密码"
+            type="password"
+            size="large"
+            show-password
+          />
+        </el-form-item>
+
+        <el-button
+          native-type="submit"
+          type="primary"
+          size="large"
+          class="login-button"
+          :loading="submitting"
+        >
+          {{ setupRequired ? '创建医生账号并进入系统' : '登录系统' }}
         </el-button>
       </el-form>
+
+      <div v-else class="checking-text">正在检查系统状态...</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../api/request'
@@ -38,26 +75,75 @@ const router = useRouter()
 
 const username = ref('')
 const password = ref('')
+const displayName = ref('')
+const phone = ref('')
+const confirmPassword = ref('')
 const submitting = ref(false)
+const checkingSetup = ref(true)
+const setupRequired = ref(false)
 
-async function handleLogin() {
+function saveSessionAndEnter(response) {
+  localStorage.setItem('ppglVueUser', JSON.stringify(response.data?.user || {}))
+  return router.push('/dashboard')
+}
+
+async function loadSetupStatus() {
+  checkingSetup.value = true
+  try {
+    const response = await request.get('/auth/setup-status')
+    setupRequired.value = Boolean(response.data?.setupRequired)
+  } catch (error) {
+    setupRequired.value = false
+    ElMessage.error(error?.response?.data?.message || '无法连接业务后端，请确认服务已经启动')
+  } finally {
+    checkingSetup.value = false
+  }
+}
+
+async function handleSubmit() {
   if (!username.value.trim() || !password.value) {
+    ElMessage.warning('请输入账号和密码')
     return
   }
+
+  if (setupRequired.value) {
+    if (!displayName.value.trim() || !phone.value.trim()) {
+      ElMessage.warning('请填写医生姓名和手机号')
+      return
+    }
+    if (password.value !== confirmPassword.value) {
+      ElMessage.warning('两次输入的密码不一致')
+      return
+    }
+  }
+
   submitting.value = true
   try {
-    const response = await request.post('/auth/login', {
-      username: username.value.trim(),
-      password: password.value
-    })
-    localStorage.setItem('ppglVueUser', JSON.stringify(response.data?.user || {}))
-    await router.push('/dashboard')
+    const response = setupRequired.value
+      ? await request.post('/auth/setup', {
+          username: username.value.trim(),
+          password: password.value,
+          displayName: displayName.value.trim(),
+          phone: phone.value.trim()
+        })
+      : await request.post('/auth/login', {
+          username: username.value.trim(),
+          password: password.value
+        })
+
+    await saveSessionAndEnter(response)
   } catch (error) {
-    ElMessage.error(error?.response?.data?.message || '账号或密码错误')
+    const fallback = setupRequired.value ? '初始化失败，请检查填写内容' : '账号或密码错误'
+    ElMessage.error(error?.response?.data?.message || fallback)
+    if (error?.response?.status === 409) {
+      await loadSetupStatus()
+    }
   } finally {
     submitting.value = false
   }
 }
+
+onMounted(loadSetupStatus)
 </script>
 
 <style scoped>
@@ -105,7 +191,12 @@ async function handleLogin() {
 
 .subtitle {
   color: var(--ppgl-muted);
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+}
+
+.setup-alert {
+  margin-bottom: 20px;
+  text-align: left;
 }
 
 .login-form {
@@ -114,5 +205,10 @@ async function handleLogin() {
 
 .login-button {
   width: 100%;
+}
+
+.checking-text {
+  padding: 28px 0 12px;
+  color: var(--ppgl-muted);
 }
 </style>

@@ -234,28 +234,11 @@ mvn spring-boot:run
 http://127.0.0.1:5173/
 ```
 
-### 7. 创建本地医生账号
+### 7. 首次初始化医生账号
 
-项目不提供固定的默认账号和密码。公开注册接口只创建患者账号；本地首次体验医生工作流时，可以先注册一个测试账号，再将其角色调整为医生。
+项目不提供固定的默认账号和密码。第一次打开 `http://127.0.0.1:5173/` 时，登录页会自动显示初始化表单，请填写账号、医生姓名、手机号和密码。
 
-在项目根目录执行一次：
-
-```bash
-DEMO_PASSWORD="$(openssl rand -hex 16)"
-
-curl --fail-with-body -X POST http://127.0.0.1:8080/api/auth/register \
-  -H 'Content-Type: application/json' \
-  -d "{\"username\":\"doctor_demo\",\"password\":\"${DEMO_PASSWORD}\",\"displayName\":\"演示医生\",\"phone\":\"13800000000\",\"patientIdCard\":\"110101199001011234\"}"
-
-mysql -h 127.0.0.1 -u ppgl_app -p ppgl_analyze \
-  -e "UPDATE users SET role='DOCTOR', patient_id_card=NULL WHERE username='doctor_demo';"
-
-echo "医生账号：doctor_demo"
-echo "医生密码：${DEMO_PASSWORD}"
-unset DEMO_PASSWORD
-```
-
-记录终端显示的随机密码，然后使用 `doctor_demo` 登录。若注册信息与本地已有账号冲突，请更换用户名、手机号和身份证号示例值。服务器部署时应由数据库管理员创建独立账号，不要继续使用演示账号。
+提交成功后，系统会创建第一个医生账号并自动登录。初始化入口随后自动关闭，以后打开系统只会显示正常登录页面。公开注册仍然只能创建患者账号，不能自行注册为医生。
 
 ## 使用说明
 
@@ -393,7 +376,7 @@ $PPGL_DATA_ROOT/cases/<病例编号>/
 
 ### 页面可以打开，但无法登录或调用接口
 
-请确认 Spring Boot 已运行在 `8080` 端口，Vue 的 `VITE_API_PROXY_TARGET` 指向该地址，并且登录账号已经存在于当前配置对应的 MySQL 数据库中。
+请确认 Spring Boot 已运行在 `8080` 端口，Vue 的 `VITE_API_PROXY_TARGET` 指向该地址。全新数据库会显示首次初始化表单；已经完成初始化的数据库需要使用现有账号登录。
 
 ## 系统组成
 
