@@ -27,10 +27,14 @@
           <span>病例管理</span>
         </el-menu-item>
 
-        <el-menu-item index="/upload">
-          <el-icon><UploadFilled /></el-icon>
-          <span>上传病例</span>
-        </el-menu-item>
+        <el-sub-menu index="case-upload">
+          <template #title>
+            <el-icon><UploadFilled /></el-icon>
+            <span>上传病例</span>
+          </template>
+          <el-menu-item index="/upload">上传 CT</el-menu-item>
+          <el-menu-item index="/glioma/upload">上传 MRI</el-menu-item>
+        </el-sub-menu>
 
         <el-menu-item index="/knowledge">
           <el-icon><Reading /></el-icon>
@@ -57,8 +61,8 @@
     <el-container>
       <el-header class="topbar">
         <div class="topbar-title">
-          <strong>PPGL 术前 CT 智能分割与辅助分析系统</strong>
-          <span>Segmentation / 3D Reconstruction / RAG / AI Report</span>
+          <strong>医学影像智能分割与辅助分析系统</strong>
+          <span>CT / MRI / Segmentation / 3D Reconstruction / AI Report</span>
         </div>
         <div class="user-info">
           <span class="status-dot"></span>
@@ -91,6 +95,7 @@ const route = useRoute()
 const router = useRouter()
 
 const activeMenu = computed(() => {
+  if (/^\/glioma\/cases\/[^/]+$/.test(route.path)) return '/cases'
   if (route.path.endsWith('/3d')) return 'case-3d'
   if (route.path.endsWith('/report')) return 'case-report'
   if (/^\/cases\/[^/]+(?:\/2d)?$/.test(route.path)) return 'case-result'

@@ -1,11 +1,11 @@
 <h1 align="center">PPGL Assist AI Medical Imaging</h1>
 
 <p align="center">
-  面向嗜铬细胞瘤与副神经节瘤场景的智能影像辅助分析系统
+  面向 PPGL CT 与脑胶质瘤 MRI 场景的智能影像辅助分析系统
 </p>
 
 <p align="center">
-  <b>CT 病例管理</b> · <b>全器官分割</b> · <b>PPGL 肿瘤分割</b> · <b>2D/3D 阅片</b> · <b>AI 报告</b> · <b>医学知识问答</b>
+  <b>CT/MRI 统一病例管理</b> · <b>全器官分割</b> · <b>PPGL 肿瘤分割</b> · <b>脑胶质瘤分割</b> · <b>2D/3D 阅片</b> · <b>AI 报告</b>
 </p>
 
 <p align="center">
@@ -23,7 +23,12 @@
 
 ## 项目简介
 
-PPGL Assist 以 CT 病例为入口，为 PPGL 相关影像分析提供一套完整的使用流程：上传影像、分别执行全器官分割和 PPGL 肿瘤分割、查看二维与三维结果、读取量化指标，并生成结构化 AI 辅助报告。系统还提供医学知识检索与病例报告问答功能。
+PPGL Assist 以统一病例中心为入口，在同一界面管理 CT 和 MRI 病例，并提供两条相互独立的影像分析工作流：
+
+- **PPGL CT 工作流**：分别执行全器官分割和 PPGL 肿瘤分割，查看量化指标、二维/三维结果和联合阅片，并生成结构化 AI 辅助报告。
+- **脑胶质瘤 MRI 工作流**：上传 FLAIR、T1、T1CE 和 T2 四个配准后序列，执行脑胶质瘤分割，查看 ED、NET、ET、TC 和 WT 定量指标、二维叠加结果和三维肿瘤模型。
+
+系统还提供 PPGL 医学知识检索与病例报告问答功能。
 
 系统的主要操作界面面向医生使用。患者端提供已审核报告查看与反馈原型，管理员角色用于权限区分。
 
@@ -33,18 +38,21 @@ PPGL Assist 以 CT 病例为入口，为 PPGL 相关影像分析提供一套完�
 
 | 功能 | 使用说明 |
 | --- | --- |
-| 病例管理 | 上传 CT、查看病例列表与详情、修改病例编号、删除病例，并可重新执行失败的分割任务。 |
+| 统一病例管理 | 在同一列表中管理 CT 和 MRI 病例，支持类型筛选、编号搜索、状态跟踪、查看结果、删除病例和重试失败任务。 |
 | 全器官分割 | 对 CT 中的主要解剖结构进行自动分割，生成结构标签、体积指标和三维模型。 |
 | PPGL 肿瘤分割 | 使用独立的 PPGL 分割模型生成肿瘤掩膜、体积、最大径和三维肿瘤模型。该任务不依赖全器官分割结果。 |
-| 2D/3D 阅片 | 在二维切片中查看 CT 与分割叠加结果，在三维视图中独立或联合显示器官和 PPGL 肿瘤。 |
+| 脑胶质瘤分割 | 校验四序列 MRI 的 shape、spacing、方向和 affine，然后生成水肿 ED、非增强肿瘤 NET 和增强肿瘤 ET 分割结果。 |
+| 2D/3D 阅片 | CT 病例支持器官与 PPGL 肿瘤联合阅片；MRI 病例支持三个方向逐层查看与 ED、NET、ET 三维显示。 |
 | AI 辅助报告 | 根据病例分割结果和量化指标，按照固定结构生成辅助分析报告。 |
 | 报告问答 | 围绕当前病例报告继续提问，并通过流式输出查看回答。 |
 | 医学知识问答 | 从本地 PPGL 医学知识库检索相关资料，并结合检索结果回答问题。 |
 | 访问控制 | 通过登录认证、角色权限和病例归属限制病例、影像与报告的访问范围。 |
 
-全器官分割和 PPGL 肿瘤分割是两个独立功能。使用者可以只运行其中一个，也可以全部运行后进行联合阅片。
+全器官分割和 PPGL 肿瘤分割是两个独立 CT 功能。脑胶质瘤分割是独立的 MRI 工作流，不会调用或改变 CT 病例的分析结果。
 
 ## 典型使用流程
+
+### PPGL CT 工作流
 
 1. 使用医生账号登录系统。
 2. 上传 `.nii.gz` 格式的 CT 影像并创建病例。
@@ -52,6 +60,15 @@ PPGL Assist 以 CT 病例为入口，为 PPGL 相关影像分析提供一套完�
 4. 等待任务状态显示“全器官分割完成”或“PPGL：肿瘤分割完成”。
 5. 查看分割指标、二维切片和三维模型；两个任务均完成后可进行联合阅片。
 6. 生成结构化 AI 辅助报告，并围绕报告内容继续问答。
+
+### 脑胶质瘤 MRI 工作流
+
+1. 在“上传病例”菜单中选择“上传 MRI”。
+2. 分别选择 FLAIR、T1、T1CE 和 T2 四个 `.nii.gz` 文件。
+3. 完成上传后执行四序列空间一致性校验。
+4. 校验通过后启动脑胶质瘤分割。
+5. 在结果页查看 WT、TC、ET、ED 体积、最大三维径和病灶数量。
+6. 在轴位、冠状位和矢状位查看逐层叠加结果，并独立切换 ED、NET 和 ET 三维模型。
 
 ## 运行前准备
 
@@ -82,8 +99,9 @@ ollama --version
 完整推理还需要：
 
 - PPGL 分割权重
+- 脑胶质瘤分割权重
 - 全器官分割所需权重
-- 已授权并完成脱敏的 CT 测试影像
+- 已授权并完成脱敏的 CT 或四序列 MRI 测试影像
 
 ## 快速开始
 
@@ -170,6 +188,10 @@ cp .env.example .env
 | `PPGL_INTERNAL_API_KEY` | 业务后端访问 AI 服务的内部密钥 | 强随机字符串 |
 | `TOTALSEG_WEIGHTS_PATH` | 全器官分割权重目录 | `$HOME/.totalsegmentator/nnunet/results` |
 | `PPGL_V5_CHECKPOINT` | PPGL 分割权重文件（可选覆盖） | `weights/model_best.pth` 或绝对路径 |
+| `PPGL_GLIOMA_ENABLED` | 是否启用脑胶质瘤分割 | `true` |
+| `PPGL_GLIOMA_MODEL_DIR` | 脑胶质瘤模型目录，相对路径从 `PPGL_DATA_ROOT` 解析 | `models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres` |
+| `PPGL_GLIOMA_DEVICE` | 脑胶质瘤推理设备 | `cuda` |
+| `PPGL_GLIOMA_MAX_UPLOAD_MB` | 单个 MRI 序列最大上传大小 | `2048` |
 
 可以执行两次下面的命令，分别生成 JWT 密钥和内部 API 密钥：
 
@@ -191,6 +213,28 @@ ai-backend/progress_patch_v5/weights/model_best.pth
 
 全器官分割首次运行时可能需要下载模型权重。请确保 `TOTALSEG_WEIGHTS_PATH` 指向当前用户可读写的目录，并保持网络可用。
 
+将脑胶质瘤分割权重放在仓库外的模型目录。默认结构为：
+
+```text
+$PPGL_DATA_ROOT/models/brain-glioma/
+└── nnUNetTrainer__nnUNetPlans__3d_fullres/
+    ├── dataset.json
+    ├── plans.json
+    ├── model_manifest.json
+    └── fold_0/
+        └── checkpoint_best.pth
+```
+
+准备完成后在 `.env` 中启用：
+
+```dotenv
+PPGL_GLIOMA_ENABLED=true
+PPGL_GLIOMA_MODEL_DIR=models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
+PPGL_GLIOMA_DEVICE=cuda
+```
+
+脑胶质瘤权重暂不随代码仓库发布，后续将上传至 Hugging Face 并在本文档补充下载地址。当前权重用于科研原型验证，不作为独立临床结论或性能承诺。
+
 AI 报告和问答需要可用的大模型。默认启动脚本使用 Ollama，并查找 `ppgl-qwen3-32b-q4:latest`。如果本机没有该模型，可使用已经安装的其他 Ollama 模型，例如：
 
 ```bash
@@ -210,6 +254,8 @@ REPORT_OPENAI_MODEL=qwen3:8b
 打开第一个终端，在项目根目录启动 Ollama、FastAPI 和 Vue：
 
 ```bash
+sudo systemctl start mysql
+
 set -a
 source .env
 set +a
@@ -223,6 +269,9 @@ bash ai-backend/start_ppgl_ai.sh
 set -a
 source .env
 set +a
+
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
 
 cd frontend-javaweb
 mvn spring-boot:run
@@ -244,33 +293,36 @@ http://127.0.0.1:5173/
 
 ### 上传病例
 
-1. 使用医生账号登录后进入“上传病例”。
-2. 选择经过授权和脱敏的 CT 文件，当前主要支持 `.nii.gz` 格式。
-3. 上传完成后，系统会生成病例编号并进入病例详情页。
+1. 使用医生账号登录后，在“上传病例”菜单中选择“上传 CT”或“上传 MRI”。
+2. CT 工作流上传一个 `.nii.gz` 影像；MRI 工作流分别上传 FLAIR、T1、T1CE 和 T2 四个 `.nii.gz` 序列。
+3. MRI 四序列必须已完成配准，并通过系统的 NIfTI Header 和空间一致性校验。
+4. 上传完成后系统会生成病例编号，所有 CT 和 MRI 病例都在同一个病例管理页面中显示。
 
 ### 执行分割
 
-病例详情页提供两个独立任务：
+CT 病例提供两个独立任务：
 
 - “全器官分割”生成器官掩膜、器官体积和三维结构。
 - “PPGL 肿瘤分割”生成 PPGL 肿瘤掩膜、体积、最大径和三维肿瘤结构。
 
-两个任务可以分别运行，互不绑定。任务失败后可以在病例管理页面重新尝试分割。
+两个 CT 任务可以分别运行，互不绑定。MRI 病例通过独立的脑胶质瘤分割任务处理。任务失败后可以在统一病例管理页面重新尝试分割。
 
 ### 查看结果
 
-- 在病例详情页查看分割进度、量化指标和结果文件。
-- 在二维视图中查看 CT 与分割掩膜的叠加效果。
-- 在三维视图中勾选器官或 PPGL 肿瘤，并调整显示范围。
-- 两类分割都完成后，可同时加载器官与肿瘤进行联合阅片。
+- CT 病例可查看全器官和 PPGL 分割进度、量化指标、二维叠加图和三维结构。
+- 全器官和 PPGL 两类分割都完成后，可同时加载器官与肿瘤进行联合阅片。
+- MRI 病例可查看 WT、TC、ET、ED 等定量指标，以及轴位、冠状位和矢状位逐层叠加结果。
+- MRI 三维视图支持独立切换水肿 ED、非增强肿瘤 NET 和增强肿瘤 ET。
 
 ### 生成 AI 报告
 
-分割完成后进入报告页面生成结构化 AI 辅助报告。报告按照固定章节组织，病例数据和量化结果会填入对应位置。报告仅供辅助参考，使用者应结合原始影像和专业判断进行复核。
+CT 分割完成后可进入报告页面生成结构化 AI 辅助报告。报告按照固定章节组织，病例数据和量化结果会填入对应位置。报告仅供辅助参考，使用者应结合原始影像和专业判断进行复核。
 
 ### 病例管理
 
-病例列表支持查看详情、修改病例编号、删除病例和重试失败任务。删除病例会同时移除对应的运行文件，操作前请确认不再需要这些数据或已经完成备份。
+病例管理页面统一显示 CT 和 MRI 病例，并支持全部/CT/MRI 筛选、病例编号搜索、状态跟踪、查看结果、继续上传、重试失败任务和删除病例。CT 和 MRI 各自使用独立的后端工作流，不会相互覆盖原始影像或分割结果。
+
+删除病例会同时移除对应的原始影像和运行结果，操作前请确认不再需要这些数据或已经完成备份。
 
 ## 可选：启用医学知识问答
 
@@ -299,6 +351,7 @@ python -c 'from backend.rag.vector_store import build_vector_index; print(build_
 公开仓库不包含以下资产：
 
 - PPGL 分割权重
+- 脑胶质瘤分割权重
 - 全器官分割权重
 - 真实医学影像
 - 数据库内容、上传文件、日志和推理结果
@@ -308,13 +361,16 @@ python -c 'from backend.rag.vector_store import build_vector_index; print(build_
 
 ```text
 $PPGL_DATA_ROOT/
-├── uploads/        # 上传的病例文件
-├── jobs/           # 分析任务状态与中间结果
-├── cases/          # AI 病例工作区和推理结果
-├── logs/           # 服务日志
-├── rag-documents/  # RAG 原始文档
-├── rag-parsed/     # RAG 切块结果
-└── rag-index/      # Qdrant 本地向量索引
+├── uploads/         # 业务后端接收的上传文件
+├── jobs/            # 分析任务状态与中间结果
+├── cases/           # CT 病例工作区和推理结果
+├── brain-cases/     # 脑胶质瘤 MRI 病例与推理结果
+├── models/
+│   └── brain-glioma/ # 脑胶质瘤分割权重
+├── logs/            # 服务日志
+├── rag-documents/   # RAG 原始文档
+├── rag-parsed/      # RAG 切块结果
+└── rag-index/       # Qdrant 本地向量索引
 ```
 
 请只使用已获得授权且完成脱敏的测试影像。模型与数据的补充说明见 [WEIGHTS_AND_DATA.md](WEIGHTS_AND_DATA.md)。
@@ -369,7 +425,8 @@ $PPGL_DATA_ROOT/logs/
 每个病例的分割日志和错误信息位于：
 
 ```text
-$PPGL_DATA_ROOT/cases/<病例编号>/
+CT:  $PPGL_DATA_ROOT/cases/<病例编号>/
+MRI: $PPGL_DATA_ROOT/brain-cases/<病例编号>/
 ```
 
 修正模型路径、显存或依赖问题后，可以在病例管理页面重新尝试失败的任务。
@@ -388,7 +445,7 @@ Spring Boot（8080）
   └─ 登录认证、角色与病例权限、业务数据、AI 请求转发
        ↓ 内部 API
 FastAPI（8000）
-  └─ 全器官分割、PPGL 肿瘤分割、三维产物、RAG 与 AI 报告
+  └─ 全器官分割、PPGL 肿瘤分割、脑胶质瘤分割、三维产物、RAG 与 AI 报告
 ```
 
 主要目录：

@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -30,6 +31,7 @@ public class AiGatewayClient {
             "x-accel-buffering",
             "content-length"
     );
+    private static final Set<String> BRAIN_MODALITIES = Set.of("flair", "t1", "t1ce", "t2");
 
     private final HttpClient httpClient;
     private final String baseUrl;
@@ -97,6 +99,40 @@ public class AiGatewayClient {
         return send(request);
     }
 
+    public ResponseEntity<StreamingResponseBody> uploadBrainModality(
+            String caseId,
+            String modality,
+            MultipartFile file,
+            AuthenticatedUser user
+    ) throws IOException, InterruptedException {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请选择 MRI 文件");
+        }
+        String safeCaseId = requirePathSegment(caseId, "病例编号无效");
+        String safeModality = modality == null ? "" : modality.trim().toLowerCase();
+        if (!BRAIN_MODALITIES.contains(safeModality)) {
+            throw new IllegalArgumentException("MRI 序列名称无效");
+        }
+
+        String boundary = "----PPGLBrainGateway" + UUID.randomUUID();
+        String filename = sanitizeFilename(file.getOriginalFilename(), safeModality + ".nii.gz");
+        byte[] header = ("--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n"
+                + "Content-Type: application/gzip\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] footer = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+        HttpRequest.BodyPublisher body = HttpRequest.BodyPublishers.concat(
+                HttpRequest.BodyPublishers.ofByteArray(header),
+                HttpRequest.BodyPublishers.ofInputStream(() -> inputStream(file)),
+                HttpRequest.BodyPublishers.ofByteArray(footer)
+        );
+        URI uri = URI.create(baseUrl + "/api/brain/cases/" + safeCaseId + "/images/" + safeModality);
+        HttpRequest request = delegatedRequest(uri, user)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .PUT(body)
+                .build();
+        return send(request);
+    }
+
     private HttpRequest.Builder delegatedRequest(URI uri, AuthenticatedUser user) {
         return HttpRequest.newBuilder(uri)
                 .timeout(requestTimeout)
@@ -144,7 +180,19 @@ public class AiGatewayClient {
     }
 
     private String sanitizeFilename(String value) {
-        String filename = value == null || value.isBlank() ? "ct.nii.gz" : value;
+        return sanitizeFilename(value, "ct.nii.gz");
+    }
+
+    private String sanitizeFilename(String value, String fallback) {
+        String filename = value == null || value.isBlank() ? fallback : value;
         return filename.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private String requirePathSegment(String value, String message) {
+        String segment = value == null ? "" : value.trim();
+        if (!segment.matches("[A-Za-z0-9_-]{1,120}")) {
+            throw new IllegalArgumentException(message);
+        }
+        return segment;
     }
 }

@@ -8,6 +8,8 @@ import UploadCase from '../views/UploadCase.vue'
 import CaseDetail from '../views/CaseDetail.vue'
 import ThreeDViewer from '../views/ThreeDViewer.vue'
 import ReportView from '../views/ReportView.vue'
+import GliomaUploadCase from '../views/GliomaUploadCase.vue'
+import GliomaCaseDetail from '../views/GliomaCaseDetail.vue'
 
 const KnowledgeBaseView = () => import('../views/KnowledgeBaseView.vue')
 
@@ -35,6 +37,18 @@ const routes = [
       {
         path: 'upload',
         component: UploadCase
+      },
+      {
+        path: 'glioma/cases',
+        redirect: { path: '/cases', query: { type: 'mri' } }
+      },
+      {
+        path: 'glioma/upload',
+        component: GliomaUploadCase
+      },
+      {
+        path: 'glioma/cases/:caseId',
+        component: GliomaCaseDetail
       },
       {
         path: 'knowledge',

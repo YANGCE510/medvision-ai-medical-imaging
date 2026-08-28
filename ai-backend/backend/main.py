@@ -1664,3 +1664,16 @@ async def get_case_label_map(case_id: str):
     if not label_map_path.exists():
         raise HTTPException(status_code=404, detail="label_map.json not found")
     return read_json(label_map_path)
+
+
+from glioma.router import build_glioma_router
+
+
+app.include_router(
+    build_glioma_router(
+        DATA_ROOT,
+        SEGMENTATION_LOCK,
+        unload_chat_model_for_segmentation,
+        preload_chat_model_after_segmentation,
+    )
+)

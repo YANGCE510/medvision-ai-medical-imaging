@@ -10,6 +10,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,7 +36,25 @@ public class AiGatewayController {
         return aiGatewayClient.upload(file, requireAiUser(jwt));
     }
 
-    @RequestMapping({"/cases", "/cases/**", "/rag/**", "/llm/**"})
+    @PutMapping(
+            value = "/brain/cases/{caseId}/images/{modality}",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<StreamingResponseBody> uploadBrainModality(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String caseId,
+            @PathVariable String modality,
+            @RequestParam MultipartFile file
+    ) throws IOException, InterruptedException {
+        return aiGatewayClient.uploadBrainModality(
+                caseId,
+                modality,
+                file,
+                requireAiUser(jwt)
+        );
+    }
+
+    @RequestMapping({"/cases", "/cases/**", "/brain/**", "/rag/**", "/llm/**"})
     public ResponseEntity<StreamingResponseBody> proxy(
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest request
