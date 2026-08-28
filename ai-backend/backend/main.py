@@ -1,11 +1,10 @@
 from fastapi import BackgroundTasks, FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
-import importlib.util
 import hmac
 import jwt
 import os
@@ -20,14 +19,12 @@ import urllib.request
 import zipfile
 from threading import Lock
 
+from core.runtime import configured_path, subprocess_runtime_env
+from ct.inference_wrapper import run_single_case
+from ct.run_totalseg import create_mesh_outputs
 from report_agent import (
-    build_ai_report_chat_request,
     call_openai_text,
-    chat_with_ai_report,
-    direct_ai_report_answer,
-    generate_ai_report,
     llm_provider,
-    save_ai_report_chat,
     stream_openai_text,
 )
 
@@ -120,9 +117,6 @@ async def require_api_authentication(request: Request, call_next):
 # 代码目录从当前文件定位；运行数据默认放到项目外，避免和源码混放。
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend-vue-prototype"
-if str(FRONTEND_DIR) not in sys.path:
-    sys.path.insert(0, str(FRONTEND_DIR))
 
 DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
 
@@ -132,11 +126,6 @@ CASES_DIR.mkdir(parents=True, exist_ok=True)
 RUNNING_CASES = set()
 RUNNING_PPGL_CASES = set()
 SEGMENTATION_LOCK = Lock()
-
-
-def configured_path(name: str, default: Path, base_dir: Path) -> Path:
-    configured = Path(os.environ.get(name, str(default))).expanduser()
-    return (configured if configured.is_absolute() else base_dir / configured).resolve()
 
 
 PPGL_V5_DIR = configured_path(
@@ -154,11 +143,6 @@ PPGL_V5_MODEL_CONFIG = configured_path(
     Path("model_config.json"),
     PPGL_V5_DIR,
 )
-
-
-class AiReportChatRequest(BaseModel):
-    question: str
-    history: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class GenericLlmStreamChatRequest(BaseModel):
@@ -541,35 +525,13 @@ def result_output_path(case_id: str, key: str, fallback: Path) -> Path:
     return path
 
 
-def optional_file_path(value: str) -> Path:
-    if not str(value or "").strip():
-        return Path("__missing__")
-    return Path(value)
-
-
-def load_run_single_case():
-    wrapper_path = FRONTEND_DIR / "inference_wrapper.py"
-    spec = importlib.util.spec_from_file_location("ppgl_frontend_inference_wrapper", wrapper_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load inference wrapper: {wrapper_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.run_single_case
-
-
 def build_ppgl_mesh(output_dir: Path) -> dict:
     mask_path = output_dir / "tumor_mask.nii.gz"
     if not mask_path.is_file():
         raise FileNotFoundError(f"PPGL tumor mask not found: {mask_path}")
     label_map_path = output_dir / "label_map.json"
     write_json(label_map_path, {"label_map": {"0": "background", "1": "tumor:ppgl"}})
-    mesh_builder_path = FRONTEND_DIR / "run_totalseg.py"
-    spec = importlib.util.spec_from_file_location("ppgl_mesh_builder", mesh_builder_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load mesh builder: {mesh_builder_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.create_mesh_outputs(mask_path, label_map_path, output_dir)
+    return create_mesh_outputs(mask_path, label_map_path, output_dir)
 
 
 def ensure_ppgl_mesh(case_dir: Path) -> dict:
@@ -589,16 +551,6 @@ def ensure_ppgl_mesh(case_dir: Path) -> dict:
     })
     write_json(result_path, result)
     return read_json(manifest_path)
-
-
-def subprocess_runtime_env() -> dict:
-    env = os.environ.copy()
-    env_prefix = Path(sys.executable).resolve().parent.parent
-    env_bin = env_prefix / "bin"
-    env_lib = env_prefix / "lib"
-    env["PATH"] = str(env_bin) + os.pathsep + env.get("PATH", "")
-    env["LD_LIBRARY_PATH"] = str(env_lib) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-    return env
 
 
 def safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
@@ -648,8 +600,6 @@ def run_segmentation_task(
     try:
         RUNNING_CASES.add(case_id)
         with SEGMENTATION_LOCK:
-            run_single_case = load_run_single_case()
-
             if force and output_dir.exists():
                 for child in output_dir.iterdir():
                     if child.name == "ppgl":
@@ -813,7 +763,8 @@ def run_existing_totalseg_task(
 
             cmd = [
                 sys.executable,
-                str(BASE_DIR / "run_totalseg.py"),
+                "-m",
+                "ct.run_totalseg",
                 "--input",
                 str(input_path),
                 "--output",
@@ -832,7 +783,7 @@ def run_existing_totalseg_task(
             try:
                 completed = subprocess.run(
                     cmd,
-                    cwd=str(BASE_DIR),
+                    cwd=str(BASE_DIR / "backend"),
                     env=subprocess_runtime_env(),
                     text=True,
                     capture_output=True,
@@ -1330,161 +1281,6 @@ async def get_case_mesh_manifest(case_id: str):
     return read_json(manifest_path)
 
 
-@app.get("/api/cases/{case_id}/report", response_class=PlainTextResponse)
-async def get_case_report(case_id: str):
-    case_dir = case_dir_for(case_id)
-    result_path = case_dir / "output" / "result.json"
-    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
-    if not result_path.is_file() and not ppgl_result_path.is_file():
-        raise HTTPException(status_code=404, detail="请先完成全器官分割或 PPGL 分割")
-    result = read_json(result_path) if result_path.is_file() else {}
-    ai_report_path = optional_file_path(result.get("outputs", {}).get("ai_report_markdown_path", ""))
-    if ai_report_path.is_file():
-        return ai_report_path.read_text(encoding="utf-8")
-
-    fallback_ai_report_path = case_dir / "output" / "ai_report.md"
-    if fallback_ai_report_path.is_file():
-        return fallback_ai_report_path.read_text(encoding="utf-8")
-
-    report_path = optional_file_path(result.get("outputs", {}).get("report_path", ""))
-    if not report_path.is_file():
-        raise HTTPException(status_code=404, detail="report.md not found")
-    return report_path.read_text(encoding="utf-8")
-
-
-@app.post("/api/cases/{case_id}/ai-report/generate")
-async def generate_case_ai_report(case_id: str):
-    case_dir = case_dir_for(case_id)
-    result_path = case_dir / "output" / "result.json"
-    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
-    if not result_path.exists() and not ppgl_result_path.exists():
-        raise HTTPException(status_code=404, detail="请先完成分割，再生成 AI 报告")
-
-    try:
-        report = generate_ai_report(case_dir)
-        (case_dir / "output" / "ai_report_error.log").unlink(missing_ok=True)
-        return report
-    except RuntimeError as exc:
-        error_path = case_dir / "output" / "ai_report_error.log"
-        error_path.write_text(str(exc), encoding="utf-8")
-        raise HTTPException(status_code=502, detail=str(exc))
-    except Exception as exc:
-        error_path = case_dir / "output" / "ai_report_error.log"
-        error_path.write_text(traceback.format_exc(), encoding="utf-8")
-        raise HTTPException(status_code=500, detail=f"AI 报告生成失败：{exc}")
-
-
-@app.get("/api/cases/{case_id}/ai-report")
-async def get_case_ai_report(case_id: str):
-    case_dir = case_dir_for(case_id)
-    report_path = case_dir / "output" / "ai_report.json"
-    if not report_path.exists():
-        raise HTTPException(status_code=404, detail="ai_report.json not found")
-    return read_json(report_path)
-
-
-@app.get("/api/cases/{case_id}/ai-report/chat")
-async def get_case_ai_report_chat(case_id: str):
-    case_dir = case_dir_for(case_id)
-    chat_path = case_dir / "output" / "ai_report_chat.json"
-    if not chat_path.exists():
-        return {
-            "case_id": case_id,
-            "messages": [],
-        }
-    return read_json(chat_path)
-
-
-@app.post("/api/cases/{case_id}/ai-report/chat")
-async def chat_case_ai_report(case_id: str, payload: AiReportChatRequest):
-    case_dir = case_dir_for(case_id)
-    result_path = case_dir / "output" / "result.json"
-    ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
-    if not result_path.exists() and not ppgl_result_path.exists():
-        raise HTTPException(status_code=404, detail="请先完成分割，再进行 AI 问答")
-    if not payload.question.strip():
-        raise HTTPException(status_code=400, detail="问题不能为空")
-
-    output_dir = case_dir / "output"
-    if not (output_dir / "ai_report.md").exists() and not (output_dir / "ai_report.json").exists():
-        raise HTTPException(status_code=404, detail="请先生成 AI 报告，再进行 AI 问答")
-
-    try:
-        return chat_with_ai_report(case_dir, payload.question, payload.history)
-    except RuntimeError as exc:
-        error_path = case_dir / "output" / "ai_report_chat_error.log"
-        error_path.write_text(str(exc), encoding="utf-8")
-        raise HTTPException(status_code=502, detail=str(exc))
-    except Exception as exc:
-        error_path = case_dir / "output" / "ai_report_chat_error.log"
-        error_path.write_text(traceback.format_exc(), encoding="utf-8")
-        raise HTTPException(status_code=500, detail=f"AI 问答失败：{exc}")
-
-
-@app.post("/api/cases/{case_id}/ai-report/chat/stream")
-async def stream_chat_case_ai_report(case_id: str, payload: AiReportChatRequest):
-    case_dir = case_dir_for(case_id)
-    result_path = case_dir / "output" / "result.json"
-    if not result_path.exists():
-        raise HTTPException(status_code=404, detail="请先完成分割，再进行 AI 问答")
-    if not payload.question.strip():
-        raise HTTPException(status_code=400, detail="问题不能为空")
-
-    output_dir = case_dir / "output"
-    if not (output_dir / "ai_report.md").exists() and not (output_dir / "ai_report.json").exists():
-        raise HTTPException(status_code=404, detail="请先生成 AI 报告，再进行 AI 问答")
-
-    def generate():
-        answer_parts: list[str] = []
-        try:
-            direct = direct_ai_report_answer(case_dir, payload.question)
-            if direct is not None:
-                clean_question, answer, metadata = direct
-                for index in range(0, len(answer), 18):
-                    yield stream_event({"type": "delta", "text": answer[index : index + 18]})
-                chat = save_ai_report_chat(case_dir, clean_question, answer, {**metadata, "stream": True})
-                yield stream_event({"type": "done", "chat": chat})
-                return
-
-            clean_question, prompt = build_ai_report_chat_request(
-                case_dir,
-                payload.question,
-                payload.history,
-            )
-            for delta in stream_openai_text(prompt):
-                answer_parts.append(delta)
-                yield stream_event({"type": "delta", "text": delta})
-
-            answer = "".join(answer_parts).strip()
-            if not answer:
-                raise RuntimeError("OpenAI API returned an empty answer")
-
-            chat = save_ai_report_chat(
-                case_dir,
-                clean_question,
-                answer,
-                {"provider": llm_provider(), "stream": True},
-            )
-            yield stream_event({"type": "done", "chat": chat})
-        except RuntimeError as exc:
-            error_path = case_dir / "output" / "ai_report_chat_error.log"
-            error_path.write_text(str(exc), encoding="utf-8")
-            yield stream_event({"type": "error", "detail": str(exc)})
-        except Exception as exc:
-            error_path = case_dir / "output" / "ai_report_chat_error.log"
-            error_path.write_text(traceback.format_exc(), encoding="utf-8")
-            yield stream_event({"type": "error", "detail": f"AI 问答失败：{exc}"})
-
-    return StreamingResponse(
-        generate(),
-        media_type="application/x-ndjson",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
 @app.post("/api/llm/chat/stream")
 async def stream_generic_llm_chat(payload: GenericLlmStreamChatRequest):
     prompt = build_generic_llm_prompt(payload)
@@ -1667,8 +1463,10 @@ async def get_case_label_map(case_id: str):
 
 
 from glioma.router import build_glioma_router
+from report.router import build_report_router
 
 
+app.include_router(build_report_router(case_dir_for))
 app.include_router(
     build_glioma_router(
         DATA_ROOT,

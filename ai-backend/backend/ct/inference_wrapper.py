@@ -3,8 +3,7 @@ import subprocess
 import sys
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent
-RUN_TOTALSEG = FRONTEND_DIR / "run_totalseg.py"
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 def run_single_case(
@@ -39,7 +38,8 @@ def run_single_case(
 
     cmd = [
         sys.executable,
-        str(RUN_TOTALSEG),
+        "-m",
+        "ct.run_totalseg",
         "--input",
         str(input_path),
         "--output",
@@ -57,7 +57,7 @@ def run_single_case(
         cmd.append("--totalseg-fastest")
     result = subprocess.run(
         cmd,
-        cwd=str(FRONTEND_DIR),
+        cwd=str(BACKEND_DIR),
         capture_output=True,
         text=True
     )

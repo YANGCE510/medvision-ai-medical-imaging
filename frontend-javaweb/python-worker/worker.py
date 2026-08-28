@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import importlib.util
 import json
 import shutil
 import sys
@@ -15,6 +14,8 @@ warnings.filterwarnings("ignore", module="urllib3")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TOTALSEG_ROOT = PROJECT_ROOT / "TotalSegmentator-master"
 sys.path.insert(0, str(TOTALSEG_ROOT))
+AI_BACKEND_PYTHON = PROJECT_ROOT.parent / "ai-backend" / "backend"
+sys.path.insert(0, str(AI_BACKEND_PYTHON))
 
 import nibabel as nib
 import numpy as np
@@ -25,9 +26,7 @@ from totalsegmentator.map_to_binary import class_map, class_map_5_parts, map_tas
 from totalsegmentator.nifti_ext_header import add_label_map_to_nifti
 from totalsegmentator.postprocessing import remove_auxiliary_labels
 from totalsegmentator.resampling import change_spacing
-
-MESH_HELPER = PROJECT_ROOT.parent / "frontend-vue-prototype" / "run_totalseg.py"
-
+from ct.run_totalseg import create_mesh_outputs
 
 def check_if_shape_and_affine_identical(img_1, img_2):
     max_diff = np.abs(img_1.affine - img_2.affine).max()
@@ -298,9 +297,6 @@ def generate_mesh_outputs(job_dir):
     segmentation = final_dir / "segmentation.nii.gz"
     if not segmentation.is_file():
         raise RuntimeError(f"缺少三维重建输入：{segmentation}")
-    if not MESH_HELPER.is_file():
-        raise RuntimeError(f"缺少三维重建 helper：{MESH_HELPER}")
-
     label_map_path = final_dir / "label_map.json"
     if not label_map_path.is_file():
         payload = {
@@ -309,10 +305,7 @@ def generate_mesh_outputs(job_dir):
         label_map_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     update_status(job_dir, "mesh", "正在生成三维模型", 100)
-    spec = importlib.util.spec_from_file_location("ppgl_mesh_helper", MESH_HELPER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    outputs = module.create_mesh_outputs(segmentation, label_map_path, final_dir)
+    outputs = create_mesh_outputs(segmentation, label_map_path, final_dir)
     if not Path(outputs["glb_path"]).is_file() or not Path(outputs["manifest_path"]).is_file():
         raise RuntimeError("三维模型生成完成但缺少 scene.glb 或 mesh_manifest.json")
     update_status(job_dir, "done", "三维模型已生成", 100)

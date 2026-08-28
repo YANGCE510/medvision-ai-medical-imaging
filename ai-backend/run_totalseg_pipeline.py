@@ -17,6 +17,8 @@ import nibabel as nib
 import numpy as np
 from nibabel.processing import resample_from_to
 
+from backend.core.runtime import find_console_script, subprocess_runtime_env
+
 
 PROJECT_DIR = Path(__file__).resolve().parent
 DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
@@ -87,21 +89,10 @@ def timed_stage(log_path: Path, timings: dict[str, float], key: str, label: str)
         append_log(log_path, f"[DONE] {label} in {format_elapsed(elapsed)}")
 
 
-def prepend_env_path(env: dict[str, str], key: str, values: list[Path]) -> None:
-    existing = [item for item in env.get(key, "").split(os.pathsep) if item]
-    additions = [str(path) for path in values if path.exists()]
-    merged = list(dict.fromkeys(additions + existing))
-    if merged:
-        env[key] = os.pathsep.join(merged)
-
-
 def runtime_env(totalseg_root: Path | None) -> dict[str, str]:
-    env = os.environ.copy()
+    python_paths = [totalseg_root] if totalseg_root is not None else []
+    env = subprocess_runtime_env(python_paths=python_paths)
     env["PYTHONNOUSERSITE"] = "1"
-    env_prefix = Path(sys.executable).resolve().parent.parent
-    prepend_env_path(env, "LD_LIBRARY_PATH", [env_prefix / "lib"])
-    if totalseg_root is not None:
-        prepend_env_path(env, "PYTHONPATH", [totalseg_root])
     return env
 
 
@@ -116,13 +107,7 @@ def rois_for_mode(mode: str) -> list[str] | None:
 
 
 def totalsegmentator_executable() -> str:
-    environment_command = Path(sys.executable).resolve().parent / "TotalSegmentator"
-    if environment_command.is_file():
-        return str(environment_command)
-    command = shutil.which("TotalSegmentator")
-    if command:
-        return command
-    raise FileNotFoundError("TotalSegmentator command not found. Install the project environment first.")
+    return find_console_script("TotalSegmentator")
 
 
 def load_mask_on_reference(mask_path: Path, reference_img: nib.Nifti1Image) -> np.ndarray:

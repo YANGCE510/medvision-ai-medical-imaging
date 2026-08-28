@@ -18,10 +18,9 @@ import vtk
 from PIL import Image
 from vtk.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
+from core.runtime import subprocess_runtime_env
 
-FRONTEND_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = FRONTEND_DIR.parent
-AI_BACKEND_DIR = PROJECT_ROOT / "ai-backend"
+AI_BACKEND_DIR = Path(__file__).resolve().parents[2]
 TOTALSEG_PIPELINE = AI_BACKEND_DIR / "run_totalseg_pipeline.py"
 
 
@@ -55,16 +54,6 @@ def resolve_device(device: str) -> tuple[str, str]:
     if value.startswith("cuda:"):
         return value, "gpu:" + value.split(":", 1)[1]
     return value, "gpu:0"
-
-
-def subprocess_runtime_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env_prefix = Path(sys.executable).resolve().parent.parent
-    env_bin = env_prefix / "bin"
-    env_lib = env_prefix / "lib"
-    env["PATH"] = str(env_bin) + os.pathsep + env.get("PATH", "")
-    env["LD_LIBRARY_PATH"] = str(env_lib) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-    return env
 
 
 def tumor_label_from_label_map(label_map: dict[str, Any]) -> int | None:
@@ -510,12 +499,35 @@ def make_binary_glb(meshes: list[dict[str, Any]], output_path: Path) -> None:
         f.write(bin_bytes)
 
 
+def gltfpack_executable() -> str:
+    configured = os.environ.get("PPGL_GLTFPACK_BIN", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+        if path.is_file():
+            return str(path.resolve())
+        command = shutil.which(configured)
+        if command:
+            return command
+        raise RuntimeError(f"PPGL_GLTFPACK_BIN does not point to an executable: {configured}")
+
+    command = shutil.which("gltfpack")
+    if command:
+        return command
+
+    executable_names = ["gltfpack.cmd", "gltfpack.exe", "gltfpack"] if os.name == "nt" else ["gltfpack"]
+    project_root = AI_BACKEND_DIR.parent
+    for package_dir in [AI_BACKEND_DIR, project_root / "frontend-vue-prototype"]:
+        for executable_name in executable_names:
+            candidate = package_dir / "node_modules" / ".bin" / executable_name
+            if candidate.is_file():
+                return str(candidate)
+
+    raise RuntimeError("gltfpack not found. Install it or configure PPGL_GLTFPACK_BIN.")
+
+
 def meshopt_compress_glb(source_path: Path, output_path: Path, simplify_ratio: float = 1.0) -> None:
-    gltfpack = FRONTEND_DIR / "node_modules" / ".bin" / "gltfpack"
-    if not gltfpack.is_file():
-        raise RuntimeError(f"gltfpack not found: {gltfpack}. Run npm install in {FRONTEND_DIR}.")
     command = [
-        str(gltfpack),
+        gltfpack_executable(),
         "-i", str(source_path),
         "-o", str(output_path),
         "-c",
@@ -760,7 +772,7 @@ def collect_outputs(case_id: str, input_path: Path, output_dir: Path, run_dir: P
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Frontend entrypoint for TotalSegmentator inference.")
+    parser = argparse.ArgumentParser(description="CT full-organ segmentation inference entrypoint.")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--case-id", default="")
