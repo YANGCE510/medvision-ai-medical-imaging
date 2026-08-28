@@ -1,7 +1,7 @@
-<h1 align="center">PPGL Assist AI Medical Imaging</h1>
+<h1 align="center">MedVision AI Workbench</h1>
 
 <p align="center">
-  面向 PPGL CT 与脑胶质瘤 MRI 场景的智能影像辅助分析系统
+  面向 CT 与 MRI 场景的医学影像智能分析工作站
 </p>
 
 <p align="center">
@@ -18,12 +18,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/cover.png" alt="PPGL Assist 系统封面" width="920">
+  <img src="docs/assets/cover.png" alt="MedVision AI Workbench 系统封面" width="920">
 </p>
 
 ## 项目简介
 
-PPGL Assist 以统一病例中心为入口，在同一界面管理 CT 和 MRI 病例，并提供两条相互独立的影像分析工作流：
+MedVision AI Workbench 以统一病例中心为入口，在同一界面管理 CT 和 MRI 病例，并提供两条相互独立的影像分析工作流：
 
 - **PPGL CT 工作流**：分别执行全器官分割和 PPGL 肿瘤分割，查看量化指标、二维/三维结果和联合阅片，并生成结构化 AI 辅助报告。
 - **脑胶质瘤 MRI 工作流**：上传 FLAIR、T1、T1CE 和 T2 四个配准后序列，执行脑胶质瘤分割，查看 ED、NET、ET、TC 和 WT 定量指标、二维叠加结果和三维肿瘤模型。
@@ -110,8 +110,8 @@ ollama --version
 ### 1. 获取项目
 
 ```bash
-git clone https://github.com/ChangjinHe2000/ppgl-assist-ai-medical-imaging.git
-cd ppgl-assist-ai-medical-imaging
+git clone https://github.com/ChangjinHe2000/medvision-ai-medical-imaging.git
+cd medvision-ai-medical-imaging
 ```
 
 ### 2. 安装项目依赖
