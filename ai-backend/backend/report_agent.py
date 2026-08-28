@@ -174,6 +174,225 @@ def render_report_markdown(report: dict[str, Any]) -> str:
     )
 
 
+REPORT_ORGAN_LABELS = {
+    "aorta": "主动脉",
+    "kidney_left": "左肾",
+    "kidney_right": "右肾",
+    "inferior_vena_cava": "下腔静脉",
+    "adrenal_gland_left": "左肾上腺",
+    "adrenal_gland_right": "右肾上腺",
+    "iliopsoas_left": "左髂腰肌",
+    "iliopsoas_right": "右髂腰肌",
+    "vertebrae": "椎体",
+}
+
+
+def report_string_list(value: Any, limit: int = 8) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = [normalize_report_text(item, "") for item in value]
+    return [item for item in items if item][:limit]
+
+
+def finite_report_number(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def format_report_number(value: float, digits: int = 3) -> str:
+    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+
+
+def report_risk_code(value: Any) -> str | None:
+    text = str(value or "").strip().lower()
+    if text in RISK_LEVEL_LABELS:
+        return text
+    if "高风险" in text or text == "high":
+        return "high"
+    if any(token in text for token in ("中等风险", "中风险", "moderate", "medium", "intermediate")):
+        return "moderate"
+    if "低风险" in text or text == "low":
+        return "low"
+    if "不确定" in text or text == "uncertain":
+        return "uncertain"
+    return None
+
+
+def deterministic_report_fields(context: dict[str, Any]) -> dict[str, Any]:
+    metrics = context.get("selected_metrics", {}) or {}
+    components = metrics.get("components", []) or []
+    components = [item for item in components if isinstance(item, dict)]
+    relations = metrics.get("organ_relations", {}) or {}
+    relations = relations if isinstance(relations, dict) else {}
+
+    volume = finite_report_number(metrics.get("tumor_volume_ml"))
+    component_count = finite_report_number(metrics.get("tumor_component_count"))
+    side = str(metrics.get("tumor_side_by_nearest_kidney") or "").strip().lower()
+    side_label = {"left": "左侧", "right": "右侧"}.get(side)
+
+    diameters: list[float] = []
+    for component in components:
+        diameter = finite_report_number(component.get("max_diameter_mm"))
+        if diameter is None:
+            bbox = component.get("bbox_size_mm")
+            bbox_values = [finite_report_number(item) for item in bbox] if isinstance(bbox, list) else []
+            bbox_values = [item for item in bbox_values if item is not None]
+            diameter = max(bbox_values) if bbox_values else None
+        if diameter is not None:
+            diameters.append(diameter)
+    maximum_diameter = max(diameters) if diameters else None
+
+    key_findings: list[str] = []
+    if volume is not None:
+        key_findings.append(f"自动分割显示肿瘤总体积约 {format_report_number(volume)} mL。")
+    if component_count is not None:
+        count_text = format_report_number(component_count, 0)
+        if maximum_diameter is not None:
+            key_findings.append(
+                f"共识别 {count_text} 个肿瘤成分，最大成分最大径约 {format_report_number(maximum_diameter)} mm。"
+            )
+        else:
+            key_findings.append(f"共识别 {count_text} 个肿瘤成分。")
+    elif maximum_diameter is not None:
+        key_findings.append(f"最大肿瘤成分最大径约 {format_report_number(maximum_diameter)} mm。")
+    if side_label:
+        key_findings.append(f"按与双肾的最近距离计算，肿瘤侧别为{side_label}。")
+
+    ranked_relations: list[tuple[str, dict[str, Any], bool, float | None]] = []
+    for key, raw_item in relations.items():
+        if not isinstance(raw_item, dict):
+            continue
+        relation_key = str(raw_item.get("name") or key)
+        overlap_voxels = finite_report_number(raw_item.get("overlap_voxels")) or 0.0
+        contact = bool(raw_item.get("contact_or_overlap")) or overlap_voxels > 0
+        distance = finite_report_number(raw_item.get("min_surface_distance_mm"))
+        ranked_relations.append((relation_key, raw_item, contact, distance))
+    ranked_relations.sort(
+        key=lambda item: (
+            not item[2],
+            item[3] if item[3] is not None else float("inf"),
+            item[0],
+        )
+    )
+
+    anatomic_relationships: list[str] = []
+    contact_labels: list[str] = []
+    near_labels: list[str] = []
+    for key, _, contact, distance in ranked_relations[:6]:
+        label = REPORT_ORGAN_LABELS.get(key, key)
+        if contact:
+            contact_labels.append(label)
+            anatomic_relationships.append(f"肿瘤与{label}的分割掩膜存在接触或重叠，需结合原始 CT 复核。")
+        elif distance is not None:
+            if distance <= 5.0:
+                near_labels.append(label)
+            anatomic_relationships.append(
+                f"肿瘤与{label}的最小表面距离约 {format_report_number(distance)} mm。"
+            )
+
+    risk_reasons: list[str] = []
+    if volume is not None or maximum_diameter is not None:
+        measurements = []
+        if volume is not None:
+            measurements.append(f"总体积约 {format_report_number(volume)} mL")
+        if maximum_diameter is not None:
+            measurements.append(f"最大径约 {format_report_number(maximum_diameter)} mm")
+        risk_reasons.append("自动分割提供的肿瘤定量依据为" + "、".join(measurements) + "。")
+    if contact_labels:
+        risk_reasons.append(f"分割掩膜显示肿瘤与{'、'.join(contact_labels)}存在接触或重叠。")
+    if near_labels:
+        risk_reasons.append(f"肿瘤与{'、'.join(near_labels)}的计算距离不超过 5 mm。")
+
+    surgical_considerations: list[str] = []
+    if contact_labels:
+        surgical_considerations.append(
+            f"术前需重点复核肿瘤与{'、'.join(contact_labels)}的真实边界及解剖关系。"
+        )
+    if near_labels:
+        surgical_considerations.append(
+            f"建议结合原始 CT 多平面影像确认肿瘤与{'、'.join(near_labels)}的毗邻关系。"
+        )
+    if not surgical_considerations and (volume is not None or anatomic_relationships):
+        surgical_considerations.append("术前需由医生结合原始 CT 复核自动分割边界和病灶定位。")
+
+    if key_findings or anatomic_relationships:
+        risk_summary = "自动分割已提供肿瘤定量结果和毗邻结构距离，风险分层需结合原始 CT 及临床资料由医生复核。"
+    else:
+        risk_summary = "当前结构化分割结果未提供可用的肿瘤定量指标。"
+
+    return {
+        "case_id": str(context.get("case_id") or ""),
+        "overall_risk": "uncertain",
+        "risk_summary": risk_summary,
+        "key_findings": key_findings,
+        "risk_reasons": risk_reasons,
+        "anatomic_relationships": anatomic_relationships,
+        "surgical_considerations": surgical_considerations,
+        "follow_up_suggestions": ["建议由医生结合原始 CT、临床表现及相关检查进行综合评估。"],
+        "missing_information": ["当前结构化输入未提供患者症状、生化检查、遗传检测和病理结果。"],
+        "limitations": ["自动分割及距离计算可能存在误差，必须由医生对照原始 CT 复核。"],
+    }
+
+
+def normalize_generated_report(raw_report: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    report = raw_report if isinstance(raw_report, dict) else {}
+    nested = report.get("ai_analysis_report", {})
+    nested = nested if isinstance(nested, dict) else {}
+    fallback = deterministic_report_fields(context)
+
+    nested_risk = nested.get("risk_assessment", {})
+    nested_risk = nested_risk if isinstance(nested_risk, dict) else {}
+
+    overall_risk = report_risk_code(report.get("overall_risk"))
+    if overall_risk is None:
+        nested_levels = [
+            report_risk_code(value)
+            for key, value in nested_risk.items()
+            if not str(key).endswith("_reason")
+        ]
+        nested_levels = [value for value in nested_levels if value]
+        if "high" in nested_levels:
+            overall_risk = "high"
+        elif "moderate" in nested_levels:
+            overall_risk = "moderate"
+        elif nested_levels and all(value == "low" for value in nested_levels):
+            overall_risk = "low"
+    overall_risk = overall_risk or fallback["overall_risk"]
+
+    direct_risk_summary = normalize_report_text(report.get("risk_summary"), "")
+    risk_summary = direct_risk_summary or fallback["risk_summary"]
+
+    def normalized_list(field: str, nested_value: Any = None) -> list[str]:
+        direct = report_string_list(report.get(field))
+        if direct:
+            return direct
+        converted = report_string_list(nested_value)
+        if converted:
+            return converted
+        return list(fallback[field])
+
+    normalized = {
+        "case_id": normalize_report_text(report.get("case_id") or nested.get("case_id") or context.get("case_id"), fallback["case_id"]),
+        "overall_risk": overall_risk,
+        "risk_summary": risk_summary,
+        "key_findings": normalized_list("key_findings", nested.get("key_findings")),
+        "risk_reasons": normalized_list("risk_reasons"),
+        "anatomic_relationships": normalized_list("anatomic_relationships", nested.get("anatomic_relationships")),
+        "surgical_considerations": normalized_list("surgical_considerations", nested.get("surgical_considerations")),
+        "follow_up_suggestions": normalized_list("follow_up_suggestions", nested.get("follow_up_suggestions")),
+        "missing_information": normalized_list("missing_information", nested.get("missing_information")),
+        "limitations": normalized_list("limitations", nested.get("limitations")),
+    }
+    metadata = report.get("_metadata", {})
+    normalized["_metadata"] = metadata if isinstance(metadata, dict) else {}
+    return normalized
+
+
 def read_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
@@ -1227,8 +1446,8 @@ def stream_openai_text(prompt: str, max_output_tokens: int = 1600):
 
 def generate_ai_report(case_dir: Path) -> dict[str, Any]:
     context = compact_case_context(case_dir)
-    report = call_openai_report(context)
-    report.setdefault("case_id", case_dir.name)
+    raw_report = call_openai_report(context)
+    report = normalize_generated_report(raw_report, context)
     report["report_markdown"] = render_report_markdown(report)
 
     output_dir = case_dir / "output"
