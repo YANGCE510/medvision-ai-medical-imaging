@@ -12,6 +12,7 @@
   <a href="#项目简介">项目简介</a> ·
   <a href="#主要功能">主要功能</a> ·
   <a href="#快速开始">快速开始</a> ·
+  <a href="#docker-compose-部署">Docker Compose 部署</a> ·
   <a href="#使用说明">使用说明</a> ·
   <a href="#模型与数据">模型与数据</a> ·
   <a href="#质量保障">质量保障</a> ·
@@ -290,6 +291,71 @@ http://127.0.0.1:5173/
 
 提交成功后，系统会创建第一个医生账号并自动登录。初始化入口随后自动关闭，以后打开系统只会显示正常登录页面。公开注册仍然只能创建患者账号，不能自行注册为医生。
 
+## Docker Compose 部署
+
+Docker Compose 会启动 MySQL、AI 推理服务、Java 业务后端、Vue Web 界面和本地 Ollama 服务。浏览器只访问 Web 界面；MySQL 与 AI 推理服务保持在内部网络中。
+
+部署主机需要安装 Docker Engine、Docker Compose v2 和 NVIDIA Container Toolkit。GPU 推理容器需要能正常执行 `nvidia-smi`。
+
+### 1. 准备仓库外的数据和模型目录
+
+```text
+/opt/medvision-data/       # 病例、日志、RAG 索引、任务队列和运行结果
+/opt/medvision-models/
+├── ppgl/model_best.pth
+├── totalsegmentator/
+└── brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres/  # 可选
+```
+
+真实病例、数据库、模型权重和日志均不会写入代码仓库。
+
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，至少填写以下值：
+
+```dotenv
+PPGL_HOST_DATA_ROOT=/opt/medvision-data
+PPGL_HOST_MODEL_ROOT=/opt/medvision-models
+MYSQL_USER=ppgl_app
+MYSQL_PASSWORD=替换为数据库强密码
+MYSQL_ROOT_PASSWORD=替换为 MySQL root 强密码
+PPGL_AUTH_JWT_SECRET=替换为至少 32 位随机字符串
+PPGL_INTERNAL_API_KEY=替换为内部服务随机密钥
+```
+
+可分别执行两次 `openssl rand -hex 32` 生成登录密钥和内部服务密钥。需要启用脑胶质瘤分割时，将 `PPGL_GLIOMA_ENABLED` 设为 `true`。
+
+### 3. 启动与检查
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+首次使用需要为 Ollama 下载配置的大模型，例如：
+
+```bash
+set -a
+source .env
+set +a
+
+docker compose exec ollama ollama pull "$CHAT_OPENAI_MODEL"
+docker compose exec ollama ollama pull "$RAG_OPENAI_MODEL"
+```
+
+全部服务显示 `healthy` 后，访问 `http://127.0.0.1:5173/`。首次访问会显示医生账号初始化表单。
+
+查看服务日志或停止服务：
+
+```bash
+docker compose logs -f ai
+docker compose down
+```
+
 ## 使用说明
 
 ### 上传病例
@@ -390,6 +456,7 @@ $PPGL_DATA_ROOT/
 
 本地体验可以直接使用上述启动方式。服务器部署推荐使用单机或内网环境，并遵循以下配置：
 
+- Docker Compose 部署只公开 Web 入口；MySQL、Java 和 AI 服务不会映射到宿主机端口。
 - 使用 Nginx 托管前端构建产物，将 `/api` 请求转发到 Spring Boot。
 - 仅向使用者开放 Web 入口，FastAPI 和 MySQL 保持在本机或内网。
 - 为 `PPGL_AUTH_JWT_SECRET`、`PPGL_INTERNAL_API_KEY` 和数据库账号设置独立的强密码。

@@ -1,0 +1,169 @@
+name: medvision-ai-workbench
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ppgl_analyze}
+      MYSQL_USER: ${MYSQL_USER:-ppgl_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      TZ: ${MYSQL_TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./frontend-javaweb/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - internal
+
+  ollama:
+    image: ollama/ollama:0.14.1
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - internal
+
+  ai:
+    build:
+      context: .
+      dockerfile: ai-backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      PPGL_DATA_ROOT: /var/lib/ppgl-assist
+      PPGL_AUTH_JWT_SECRET: ${PPGL_AUTH_JWT_SECRET:?请在 .env 中设置 PPGL_AUTH_JWT_SECRET}
+      PPGL_INTERNAL_API_KEY: ${PPGL_INTERNAL_API_KEY:?请在 .env 中设置 PPGL_INTERNAL_API_KEY}
+      PPGL_CORS_ORIGINS: ${PPGL_CORS_ORIGINS:-http://localhost}
+      CHAT_LLM_PROVIDER: ${CHAT_LLM_PROVIDER:-openai_compat}
+      CHAT_OPENAI_BASE_URL: http://ollama:11434/v1
+      CHAT_OPENAI_MODEL: ${CHAT_OPENAI_MODEL:-ppgl-qwen3-32b-q4:latest}
+      CHAT_OPENAI_API_KEY: ${CHAT_OPENAI_API_KEY:-ollama}
+      RAG_LLM_PROVIDER: ${RAG_LLM_PROVIDER:-openai_compat}
+      RAG_OPENAI_BASE_URL: http://ollama:11434/v1
+      RAG_OPENAI_MODEL: ${RAG_OPENAI_MODEL:-ppgl-qwen3-8b-q4:latest}
+      RAG_OPENAI_API_KEY: ${RAG_OPENAI_API_KEY:-ollama}
+      REPORT_LLM_PROVIDER: ${REPORT_LLM_PROVIDER:-openai_compat}
+      REPORT_OPENAI_BASE_URL: http://ollama:11434/v1
+      REPORT_OPENAI_MODEL: ${REPORT_OPENAI_MODEL:-ppgl-qwen3-32b-q4:latest}
+      REPORT_OPENAI_API_KEY: ${REPORT_OPENAI_API_KEY:-ollama}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      TOTALSEG_WEIGHTS_PATH: /models/totalsegmentator
+      PPGL_V5_CHECKPOINT: /models/ppgl/model_best.pth
+      PPGL_GLIOMA_ENABLED: ${PPGL_GLIOMA_ENABLED:-false}
+      PPGL_GLIOMA_MODEL_DIR: /models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
+      PPGL_GLIOMA_DEVICE: ${PPGL_GLIOMA_DEVICE:-cuda}
+      PPGL_GPU_SYSTEM_RESERVE_MB: ${PPGL_GPU_SYSTEM_RESERVE_MB:-2048}
+      PPGL_GPU_ORGAN_REQUIRED_MB: ${PPGL_GPU_ORGAN_REQUIRED_MB:-16384}
+      PPGL_GPU_PPGL_REQUIRED_MB: ${PPGL_GPU_PPGL_REQUIRED_MB:-12288}
+      PPGL_GPU_GLIOMA_REQUIRED_MB: ${PPGL_GPU_GLIOMA_REQUIRED_MB:-16384}
+      PPGL_GPU_QUEUE_POLL_SECONDS: ${PPGL_GPU_QUEUE_POLL_SECONDS:-5}
+    volumes:
+      - type: bind
+        source: ${PPGL_HOST_DATA_ROOT:?请在 .env 中设置仓库外的数据目录 PPGL_HOST_DATA_ROOT}
+        target: /var/lib/ppgl-assist
+      - type: bind
+        source: ${PPGL_HOST_MODEL_ROOT:?请在 .env 中设置仓库外的模型目录 PPGL_HOST_MODEL_ROOT}
+        target: /models
+        read_only: true
+    depends_on:
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python3.10 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\""]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - internal
+
+  java:
+    build:
+      context: .
+      dockerfile: frontend-javaweb/Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      PPGL_DATA_ROOT: /var/lib/ppgl-assist
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ppgl_analyze}
+      MYSQL_USER: ${MYSQL_USER:-ppgl_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_TIMEZONE: ${MYSQL_TIMEZONE:-Asia/Shanghai}
+      PPGL_PIPELINE_BASE_URL: http://ai:8000
+      PPGL_AUTH_JWT_SECRET: ${PPGL_AUTH_JWT_SECRET:?请在 .env 中设置 PPGL_AUTH_JWT_SECRET}
+      PPGL_INTERNAL_API_KEY: ${PPGL_INTERNAL_API_KEY:?请在 .env 中设置 PPGL_INTERNAL_API_KEY}
+    volumes:
+      - type: bind
+        source: ${PPGL_HOST_DATA_ROOT:?请在 .env 中设置仓库外的数据目录 PPGL_HOST_DATA_ROOT}
+        target: /var/lib/ppgl-assist
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ai:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/ > /dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend-vue-prototype/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-5173}:80"
+    depends_on:
+      java:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    networks:
+      - internal
+
+volumes:
+  mysql_data:
+  ollama_data:
+
+networks:
+  internal:
+    driver: bridge
