@@ -524,3 +524,34 @@ class CaseService:
             updated = CaseStatusRecord.model_validate(updated.model_dump())
             atomic_write_json(paths.status, updated.model_dump(mode="json"))
             return updated
+
+    def recover_interrupted_inference(self, case_id: str) -> CaseStatusRecord:
+        """Return a stale running status to the durable queue after a service restart."""
+
+        with self._lock:
+            paths = self.paths_for(case_id, require_exists=True)
+            current = self.read_status(case_id)
+            if current.status != CaseStatus.RUNNING:
+                return current
+            changed_at = utc_now()
+            history = list(current.history)
+            history.append(
+                StatusHistoryEntry(
+                    status=CaseStatus.QUEUED,
+                    message="检测到服务重启，脑胶质瘤分割任务已重新排队",
+                    progress=0,
+                    timestamp=changed_at,
+                )
+            )
+            updated = current.model_copy(
+                update={
+                    "status": CaseStatus.QUEUED,
+                    "message": "检测到服务重启，脑胶质瘤分割任务已重新排队",
+                    "progress": 0,
+                    "updated_at": changed_at,
+                    "history": history,
+                }
+            )
+            updated = CaseStatusRecord.model_validate(updated.model_dump())
+            atomic_write_json(paths.status, updated.model_dump(mode="json"))
+            return updated

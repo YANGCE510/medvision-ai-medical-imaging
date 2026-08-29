@@ -171,6 +171,7 @@ def build_glioma_router(
     on_task_queued: Any | None = None,
     on_trace_start: Any | None = None,
     on_trace_event: Any | None = None,
+    task_dispatcher: Any | None = None,
 ) -> APIRouter:
     cases_dir = _path_env("PPGL_GLIOMA_CASES_DIR", data_root / "brain-cases", data_root)
     trash_dir = _path_env("PPGL_GLIOMA_TRASH_DIR", data_root / "brain-trash", data_root)
@@ -216,9 +217,12 @@ def build_glioma_router(
         execution_lock=execution_lock,
         before_inference=before_inference,
         after_inference=after_inference,
-        on_task_queued=on_task_queued,
+        on_task_queued=None if task_dispatcher is not None else on_task_queued,
         on_trace_event=on_trace_event,
+        task_dispatcher=task_dispatcher,
     )
+    if task_dispatcher is not None:
+        task_dispatcher.register_handler("glioma", inference_service.run_persisted_task)
 
     router = APIRouter(prefix="/api/brain", tags=["brain-glioma"])
 
@@ -322,8 +326,17 @@ def build_glioma_router(
             assert_access(case_id, request)
             state = await run_in_threadpool(inference_service.task_state, case_id)
             if state.get("active"):
-                raise CaseDeletionConflictError("脑胶质瘤分割仍在运行，不能删除")
-            return await run_in_threadpool(case_service.purge_case, case_id)
+                queued_task = (
+                    task_dispatcher.find_active_task("glioma", case_id)
+                    if task_dispatcher is not None
+                    else None
+                )
+                if queued_task is None or queued_task.get("status") != "queued":
+                    raise CaseDeletionConflictError("脑胶质瘤分割仍在运行，不能删除")
+                await run_in_threadpool(inference_service.cancel, case_id)
+            result = await run_in_threadpool(case_service.purge_case, case_id)
+            result["cancelled_task"] = bool(state.get("active"))
+            return result
         except HTTPException:
             raise
         except Exception as exc:

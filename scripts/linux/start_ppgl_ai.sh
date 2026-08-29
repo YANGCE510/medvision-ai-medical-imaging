@@ -40,6 +40,7 @@ export PPGL_DATA_ROOT
 OLLAMA_LOG="$PPGL_LOG_DIR/ollama_server.log"
 BACKEND_LOG="$PPGL_LOG_DIR/uvicorn_backend.log"
 FRONTEND_LOG="$PPGL_LOG_DIR/frontend_vite.log"
+BACKEND_PID_FILE="$PPGL_LOG_DIR/uvicorn_backend.pid"
 
 JWT_SECRET_VALUE="${PPGL_AUTH_JWT_SECRET:-}"
 if [ "${#JWT_SECRET_VALUE}" -lt 32 ]; then
@@ -84,7 +85,22 @@ export no_proxy="127.0.0.1,localhost,${no_proxy:-}"
 
 stop_existing() {
   pkill -f "uvicorn local_minicpm_server:app" 2>/dev/null || true
-  pkill -f "uvicorn main:app" 2>/dev/null || true
+  if [ -f "$BACKEND_PID_FILE" ]; then
+    backend_pid="$(tr -dc '0-9' < "$BACKEND_PID_FILE")"
+    if [ -n "$backend_pid" ] && kill -0 "$backend_pid" 2>/dev/null; then
+      # The backend is started with setsid below. Stopping its process group also
+      # terminates an in-flight segmentation subprocess before queue recovery.
+      kill -TERM -- "-$backend_pid" 2>/dev/null || kill -TERM "$backend_pid" 2>/dev/null || true
+      for _ in $(seq 1 30); do
+        kill -0 "$backend_pid" 2>/dev/null || break
+        sleep 1
+      done
+    fi
+    rm -f "$BACKEND_PID_FILE"
+  else
+    # Compatibility fallback for a backend started before PID tracking was added.
+    pkill -f "uvicorn main:app" 2>/dev/null || true
+  fi
   pkill -f "vite --host $FRONTEND_HOST --port $FRONTEND_PORT" 2>/dev/null || true
   sleep 1
 }
@@ -148,6 +164,7 @@ setsid "$PYTHON_BIN" -m uvicorn main:app \
   --host "$BACKEND_HOST" \
   --port "$BACKEND_PORT" \
   >> "$BACKEND_LOG" 2>&1 < /dev/null &
+echo "$!" > "$BACKEND_PID_FILE"
 
 wait_for_http "http://127.0.0.1:$BACKEND_PORT/" "PPGL backend"
 

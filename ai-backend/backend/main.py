@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks, FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -1076,6 +1076,59 @@ def run_existing_totalseg_task(
         RUNNING_CASES.discard(case_id)
 
 
+def run_queued_organ_task(task: dict[str, Any]) -> None:
+    """Execute one durable CT task claimed by the shared GPU dispatcher."""
+
+    case_id = str(task.get("case_id", ""))
+    payload = task.get("payload", {}) if isinstance(task.get("payload"), dict) else {}
+    case_dir = case_dir_for(case_id)
+    if int(task.get("recovery_count", 0) or 0) > 0:
+        update_status(case_dir, "queued", "检测到服务重启，正在恢复全器官分割任务", 5)
+
+    operation = str(payload.get("operation", "segment"))
+    if operation == "existing_totalseg":
+        run_existing_totalseg_task(
+            case_id,
+            str(payload.get("mode", "full_total")),
+            str(payload.get("device", "cuda")),
+            str(payload.get("totalseg_existing_dir", "")),
+            str(task.get("trace_id", "")),
+        )
+    else:
+        run_segmentation_task(
+            case_id,
+            str(payload.get("mode", "full_total")),
+            str(payload.get("device", "cuda")),
+            bool(payload.get("force", False)),
+            bool(payload.get("totalseg_fast", False)),
+            bool(payload.get("totalseg_fastest", False)),
+            str(task.get("trace_id", "")),
+        )
+
+    final_status = str(status_with_pipeline_progress(case_dir).get("status", "failed")).lower()
+    if final_status != "completed":
+        raise RuntimeError(f"全器官分割任务未完成：{final_status}")
+
+
+def run_queued_ppgl_task(task: dict[str, Any]) -> None:
+    """Execute one durable PPGL task claimed by the shared GPU dispatcher."""
+
+    case_id = str(task.get("case_id", ""))
+    payload = task.get("payload", {}) if isinstance(task.get("payload"), dict) else {}
+    case_dir = case_dir_for(case_id)
+    if int(task.get("recovery_count", 0) or 0) > 0:
+        update_ppgl_status(case_dir, "queued", "检测到服务重启，正在恢复 PPGL 肿瘤分割任务", 5)
+    run_ppgl_segmentation_task(
+        case_id,
+        str(payload.get("device", "cuda:0")),
+        bool(payload.get("force", False)),
+        str(task.get("trace_id", "")),
+    )
+    final_status = str(ppgl_status(case_dir).get("status", "failed")).lower()
+    if final_status != "completed":
+        raise RuntimeError(f"PPGL 肿瘤分割任务未完成：{final_status}")
+
+
 @app.get("/")
 async def root():
     return {
@@ -1223,7 +1276,6 @@ async def upload_ct(request: Request, file: UploadFile = File(...)):
 @app.post("/api/cases/{case_id}/run-with-existing-totalseg")
 async def run_case_with_existing_totalseg(
     case_id: str,
-    background_tasks: BackgroundTasks,
     request: Request,
     file: UploadFile = File(...),
     totalseg_zip: UploadFile = File(...),
@@ -1236,7 +1288,7 @@ async def run_case_with_existing_totalseg(
         raise HTTPException(status_code=400, detail="totalseg_zip must be a .zip file")
     if mode not in {"jetson_fast", "abdomen", "full_total"}:
         raise HTTPException(status_code=400, detail="mode must be jetson_fast, abdomen, or full_total")
-    if case_id in RUNNING_CASES:
+    if GPU_WORKBENCH.find_active_task("organ", case_id) is not None:
         raise HTTPException(status_code=409, detail="Case is running")
 
     case_dir = validated_case_dir_path(case_id)
@@ -1293,7 +1345,6 @@ async def run_case_with_existing_totalseg(
         totalseg_existing_dir=str(totalseg_existing_dir),
         totalseg_mask_count=mask_count,
     )
-    GPU_WORKBENCH.submit("organ", case_id)
     trace_id = start_ai_trace(
         request,
         "organ_result_normalization",
@@ -1306,13 +1357,16 @@ async def run_case_with_existing_totalseg(
         },
     )
     AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "全器官结果整理"})
-    background_tasks.add_task(
-        run_existing_totalseg_task,
+    GPU_WORKBENCH.submit(
+        "organ",
         case_id,
-        mode,
-        device,
-        str(totalseg_existing_dir),
-        trace_id,
+        payload={
+            "operation": "existing_totalseg",
+            "mode": mode,
+            "device": device,
+            "totalseg_existing_dir": str(totalseg_existing_dir),
+        },
+        trace_id=trace_id,
     )
     return read_json(case_dir / "status.json")
 
@@ -1351,14 +1405,36 @@ async def list_cases(request: Request):
 async def delete_case(case_id: str):
     case_dir = case_dir_for(case_id)
     status = status_with_pipeline_progress(case_dir)
+    organ_task = GPU_WORKBENCH.find_active_task("organ", case_id)
+    ppgl_task = GPU_WORKBENCH.find_active_task("ppgl", case_id)
 
     if (
         case_id in RUNNING_CASES
         or case_id in RUNNING_PPGL_CASES
-        or status.get("status") in {"queued", "running"}
-        or ppgl_status(case_dir).get("status") in {"queued", "running"}
+        or (organ_task is not None and organ_task.get("status") != "queued")
+        or (ppgl_task is not None and ppgl_task.get("status") != "queued")
+        or status.get("status") == "running"
+        or ppgl_status(case_dir).get("status") == "running"
     ):
         raise HTTPException(status_code=409, detail="Case is running, cannot delete")
+
+    cancelled = []
+    if organ_task is not None:
+        cancelled_task = GPU_WORKBENCH.cancel("organ", case_id)
+        if cancelled_task is not None and cancelled_task.get("status") == "cancelled":
+            update_status(case_dir, "cancelled", "病例删除前已取消全器官分割任务", 0)
+            trace_id = str(cancelled_task.get("trace_id", ""))
+            if trace_id:
+                AI_TRACES.finish(trace_id, "cancelled", result={"case_id": case_id, "reason": "病例删除"})
+            cancelled.append("全器官分割")
+    if ppgl_task is not None:
+        cancelled_task = GPU_WORKBENCH.cancel("ppgl", case_id)
+        if cancelled_task is not None and cancelled_task.get("status") == "cancelled":
+            update_ppgl_status(case_dir, "cancelled", "病例删除前已取消 PPGL 肿瘤分割任务", 0)
+            trace_id = str(cancelled_task.get("trace_id", ""))
+            if trace_id:
+                AI_TRACES.finish(trace_id, "cancelled", result={"case_id": case_id, "reason": "病例删除"})
+            cancelled.append("PPGL 肿瘤分割")
 
     try:
         shutil.rmtree(case_dir)
@@ -1369,6 +1445,7 @@ async def delete_case(case_id: str):
         "case_id": case_id,
         "status": "deleted",
         "message": "病例已删除",
+        "cancelled_tasks": cancelled,
     }
 
 
@@ -1382,6 +1459,8 @@ async def rename_case(case_id: str, payload: RenameCaseRequest):
     if (
         case_id in RUNNING_CASES
         or case_id in RUNNING_PPGL_CASES
+        or GPU_WORKBENCH.find_active_task("organ", case_id) is not None
+        or GPU_WORKBENCH.find_active_task("ppgl", case_id) is not None
         or status.get("status") in {"queued", "running"}
         or ppgl_status(case_dir).get("status") in {"queued", "running"}
     ):
@@ -1417,7 +1496,6 @@ async def rename_case(case_id: str, payload: RenameCaseRequest):
 @app.post("/api/cases/{case_id}/segment/organs")
 async def start_segmentation(
     case_id: str,
-    background_tasks: BackgroundTasks,
     request: Request,
     mode: str = "full_total",
     device: str = "cuda",
@@ -1433,14 +1511,13 @@ async def start_segmentation(
         raise HTTPException(status_code=404, detail="Input CT not found")
     if mode not in {"jetson_fast", "abdomen", "full_total"}:
         raise HTTPException(status_code=400, detail="mode must be jetson_fast, abdomen, or full_total")
-    if case_id in RUNNING_CASES:
+    if GPU_WORKBENCH.find_active_task("organ", case_id) is not None:
         return read_json(case_dir / "status.json")
     if result_path.exists() and not force:
         update_status(case_dir, "completed", "全器官分割完成", 100)
         return read_json(case_dir / "status.json")
 
     update_status(case_dir, "queued", "全器官分割任务已提交", 5)
-    GPU_WORKBENCH.submit("organ", case_id)
     trace_id = start_ai_trace(
         request,
         "organ_segmentation",
@@ -1453,15 +1530,18 @@ async def start_segmentation(
         },
     )
     AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "全器官分割"})
-    background_tasks.add_task(
-        run_segmentation_task,
+    GPU_WORKBENCH.submit(
+        "organ",
         case_id,
-        mode,
-        device,
-        force,
-        totalseg_fast,
-        totalseg_fastest,
-        trace_id,
+        payload={
+            "operation": "segment",
+            "mode": mode,
+            "device": device,
+            "force": force,
+            "totalseg_fast": totalseg_fast,
+            "totalseg_fastest": totalseg_fastest,
+        },
+        trace_id=trace_id,
     )
     return read_json(case_dir / "status.json")
 
@@ -1469,7 +1549,6 @@ async def start_segmentation(
 @app.post("/api/cases/{case_id}/segment/ppgl")
 async def start_ppgl_segmentation(
     case_id: str,
-    background_tasks: BackgroundTasks,
     request: Request,
     device: str = "cuda:0",
     force: bool = False,
@@ -1479,14 +1558,13 @@ async def start_ppgl_segmentation(
     result_path = case_dir / "output" / "ppgl" / "result.json"
     if not input_path.is_file():
         raise HTTPException(status_code=404, detail="Input CT not found")
-    if case_id in RUNNING_PPGL_CASES:
+    if GPU_WORKBENCH.find_active_task("ppgl", case_id) is not None:
         return ppgl_status(case_dir)
     if result_path.is_file() and not force:
         update_ppgl_status(case_dir, "completed", "PPGL 肿瘤分割已完成", 100)
         return ppgl_status(case_dir)
 
     update_ppgl_status(case_dir, "queued", "PPGL 肿瘤分割任务已提交", 5)
-    GPU_WORKBENCH.submit("ppgl", case_id)
     trace_id = start_ai_trace(
         request,
         "ppgl_segmentation",
@@ -1498,7 +1576,12 @@ async def start_ppgl_segmentation(
         },
     )
     AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "PPGL 肿瘤分割"})
-    background_tasks.add_task(run_ppgl_segmentation_task, case_id, device, force, trace_id)
+    GPU_WORKBENCH.submit(
+        "ppgl",
+        case_id,
+        payload={"device": device, "force": force},
+        trace_id=trace_id,
+    )
     return ppgl_status(case_dir)
 
 
@@ -2023,5 +2106,19 @@ app.include_router(
         GPU_WORKBENCH.submit,
         start_glioma_trace,
         record_glioma_trace_event,
+        GPU_WORKBENCH,
     )
 )
+
+GPU_WORKBENCH.register_handler("organ", run_queued_organ_task)
+GPU_WORKBENCH.register_handler("ppgl", run_queued_ppgl_task)
+
+
+@app.on_event("startup")
+async def start_persistent_segmentation_queue() -> None:
+    GPU_WORKBENCH.start_dispatcher()
+
+
+@app.on_event("shutdown")
+async def stop_persistent_segmentation_queue() -> None:
+    GPU_WORKBENCH.stop_dispatcher()

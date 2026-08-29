@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from threading import RLock
+from threading import Event, RLock, Thread
 import time
 from typing import Any, Callable
 import urllib.error
@@ -55,6 +55,10 @@ class GpuWorkbench:
         self.telemetry_store = self.root / "telemetry.json"
         self._lock = RLock()
         self._runtime_activities: dict[str, dict[str, Any]] = {}
+        self._handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+        self._dispatch_wakeup = Event()
+        self._dispatch_stop = Event()
+        self._dispatch_thread: Thread | None = None
 
     @staticmethod
     def _int_env(name: str, default: int, minimum: int = 0) -> int:
@@ -215,7 +219,13 @@ class GpuWorkbench:
                 return task
         return None
 
-    def submit(self, task_type: str, case_id: str) -> dict[str, Any]:
+    def submit(
+        self,
+        task_type: str,
+        case_id: str,
+        payload: dict[str, Any] | None = None,
+        trace_id: str = "",
+    ) -> dict[str, Any]:
         with self._lock:
             store = self._read_store()
             existing = self._matching_active_task(store["tasks"], task_type, case_id)
@@ -231,10 +241,162 @@ class GpuWorkbench:
                 "submitted_at": submitted_at,
                 "estimated_vram_mb": self.estimated_vram_mb(task_type),
                 "required_free_mb": self.required_free_mb(task_type),
+                "payload": dict(payload or {}),
+                "trace_id": str(trace_id or ""),
+                "attempt": 0,
             }
             store["tasks"].append(task)
             self._write_store(store)
+        self._dispatch_wakeup.set()
+        return dict(task)
+
+    def register_handler(self, task_type: str, handler: Callable[[dict[str, Any]], Any]) -> None:
+        """Register the single-process handler used by the durable segmentation queue."""
+
+        with self._lock:
+            self._handlers[task_type] = handler
+
+    def start_dispatcher(self) -> None:
+        """Resume interrupted work and start the one-at-a-time local GPU dispatcher."""
+
+        with self._lock:
+            self._recover_interrupted_tasks_locked()
+            if self._dispatch_thread is not None and self._dispatch_thread.is_alive():
+                self._dispatch_wakeup.set()
+                return
+            self._dispatch_stop.clear()
+            self._dispatch_thread = Thread(
+                target=self._dispatch_loop,
+                name="ppgl-segmentation-dispatcher",
+                daemon=True,
+            )
+            self._dispatch_thread.start()
+
+    def stop_dispatcher(self) -> None:
+        self._dispatch_stop.set()
+        self._dispatch_wakeup.set()
+        thread = self._dispatch_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2)
+
+    def recover_interrupted_tasks(self) -> int:
+        with self._lock:
+            recovered = self._recover_interrupted_tasks_locked()
+        if recovered:
+            self._dispatch_wakeup.set()
+        return recovered
+
+    def _recover_interrupted_tasks_locked(self) -> int:
+        store = self._read_store()
+        recovered = 0
+        for task in store["tasks"]:
+            if task.get("status") not in {"waiting_for_gpu", "running"}:
+                continue
+            task.update(
+                {
+                    "status": "queued",
+                    "message": "检测到服务重启，任务已重新排队",
+                    "recovered_at": now_iso(),
+                    "recovery_count": int(task.get("recovery_count", 0) or 0) + 1,
+                }
+            )
+            recovered += 1
+        if recovered:
+            self._write_store(store)
+        return recovered
+
+    def find_active_task(self, task_type: str, case_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            task = self._matching_active_task(self._read_store()["tasks"], task_type, case_id)
+            return dict(task) if task is not None else None
+
+    def cancel(self, task_type: str, case_id: str) -> dict[str, Any] | None:
+        """Cancel a task that has not started inference yet.
+
+        A running inference is deliberately not killed here: its owner must terminate the
+        subprocess safely before the task can become cancelled.
+        """
+
+        with self._lock:
+            store = self._read_store()
+            task = self._matching_active_task(store["tasks"], task_type, case_id)
+            if task is None:
+                return None
+            if task.get("status") in {"queued", "waiting_for_gpu"}:
+                task.update(
+                    {
+                        "status": "cancelled",
+                        "ended_at": now_iso(),
+                        "message": "任务已取消",
+                        "run_seconds": 0,
+                    }
+                )
+                self._write_store(store)
+                return dict(task)
             return dict(task)
+
+    def _claim_next_task(self) -> dict[str, Any] | None:
+        with self._lock:
+            store = self._read_store()
+            queued = [task for task in store["tasks"] if task.get("status") == "queued"]
+            queued.sort(key=lambda item: (str(item.get("submitted_at", "")), str(item.get("task_id", ""))))
+            for task in queued:
+                if task.get("task_type") not in self._handlers:
+                    continue
+                task.update(
+                    {
+                        "status": "running",
+                        "started_at": now_iso(),
+                        "attempt": int(task.get("attempt", 0) or 0) + 1,
+                        "message": "任务已由本地调度器领取",
+                    }
+                )
+                self._write_store(store)
+                return dict(task)
+        return None
+
+    def _task_by_id(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            for task in self._read_store()["tasks"]:
+                if task.get("task_id") == task_id:
+                    return dict(task)
+        return None
+
+    def _dispatch_loop(self) -> None:
+        while not self._dispatch_stop.is_set():
+            task = self._claim_next_task()
+            if task is None:
+                self._dispatch_wakeup.wait(timeout=self.poll_seconds)
+                self._dispatch_wakeup.clear()
+                continue
+            handler = self._handlers.get(str(task.get("task_type", "")))
+            if handler is None:
+                continue
+            try:
+                outcome = handler(task)
+                if outcome in TERMINAL_STATUSES:
+                    current = self._task_by_id(str(task.get("task_id", "")))
+                    if current is not None and current.get("status") not in TERMINAL_STATUSES:
+                        self.finish(
+                            str(task.get("task_type", "")),
+                            str(task.get("case_id", "")),
+                            str(outcome),
+                        )
+                current = self._task_by_id(str(task.get("task_id", "")))
+                if current is not None and current.get("status") not in TERMINAL_STATUSES:
+                    self.finish(str(task.get("task_type", "")), str(task.get("case_id", "")), "completed")
+            except Exception as exc:
+                current = self._task_by_id(str(task.get("task_id", "")))
+                if current is not None and current.get("status") not in TERMINAL_STATUSES:
+                    self.finish(str(task.get("task_type", "")), str(task.get("case_id", "")), "failed")
+                with self._lock:
+                    store = self._read_store()
+                    for item in store["tasks"]:
+                        if item.get("task_id") == task.get("task_id"):
+                            item["error"] = str(exc)[:500]
+                            item["message"] = "任务执行失败"
+                            break
+                    self._write_store(store)
 
     def _ensure_task(self, task_type: str, case_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         store = self._read_store()
@@ -350,6 +512,7 @@ class GpuWorkbench:
         """Wait for the configured GPU reserve, unloading LLMs once if needed."""
         with self._lock:
             store, task = self._ensure_task(task_type, case_id)
+            task_id = str(task.get("task_id", ""))
             required_free_mb = self.required_free_mb(task_type)
             task.update(
                 {
@@ -378,7 +541,10 @@ class GpuWorkbench:
             time.sleep(self.poll_seconds)
 
         with self._lock:
-            store, task = self._ensure_task(task_type, case_id)
+            store = self._read_store()
+            task = next((item for item in store["tasks"] if item.get("task_id") == task_id), None)
+            if task is None or task.get("status") == "cancelled":
+                raise RuntimeError("任务已取消")
             started_at = now_iso()
             task.update(
                 {
@@ -398,7 +564,10 @@ class GpuWorkbench:
         if status not in TERMINAL_STATUSES:
             status = "failed"
         with self._lock:
-            store, task = self._ensure_task(task_type, case_id)
+            store = self._read_store()
+            task = self._matching_active_task(store["tasks"], task_type, case_id)
+            if task is None:
+                return
             ended_at = now_iso()
             task.update(
                 {

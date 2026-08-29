@@ -260,6 +260,7 @@ class NnunetInferenceService:
         after_inference: Any | None = None,
         on_task_queued: Any | None = None,
         on_trace_event: Any | None = None,
+        task_dispatcher: Any | None = None,
     ):
         self.case_service = case_service
         self.config = config
@@ -270,6 +271,7 @@ class NnunetInferenceService:
         self.after_inference = after_inference
         self.on_task_queued = on_task_queued
         self.on_trace_event = on_trace_event
+        self.task_dispatcher = task_dispatcher
         self._tasks: Dict[str, InferenceTaskHandle] = {}
         self._tasks_lock = RLock()
         self._execution_lock = execution_lock or Lock()
@@ -330,6 +332,35 @@ class NnunetInferenceService:
         model = self._require_ready()
         self._validate_case_input(case_id)
         with self._tasks_lock:
+            if self.task_dispatcher is not None:
+                existing_job = self.task_dispatcher.find_active_task("glioma", case_id)
+                if existing_job is not None:
+                    raise InferenceBusyError(
+                        "CASE_INFERENCE_ALREADY_ACTIVE",
+                        "该病例已经存在正在运行或排队的推理任务",
+                    )
+                run_id = f"run_{utc_now().strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+                handle = InferenceTaskHandle(case_id=case_id, run_id=run_id, trace_id=str(trace_id or ""))
+                self.case_service.transition_status(
+                    case_id,
+                    CaseStatus.QUEUED,
+                    "脑胶质瘤分割任务已进入队列",
+                    0,
+                )
+                queued = self.task_dispatcher.submit(
+                    "glioma",
+                    case_id,
+                    payload={"run_id": run_id},
+                    trace_id=handle.trace_id,
+                )
+                self._emit_trace(handle, "task_queued", "completed", {"task": "脑胶质瘤分割"})
+                return {
+                    "case_id": case_id,
+                    "run_id": run_id,
+                    "task_id": queued.get("task_id"),
+                    "status": "queued",
+                }
+
             existing = self._tasks.get(case_id)
             if existing and existing.thread and existing.thread.is_alive():
                 raise InferenceBusyError(
@@ -360,9 +391,34 @@ class NnunetInferenceService:
         return {"case_id": case_id, "run_id": run_id, "status": "queued"}
 
     def cancel(self, case_id: str) -> Dict[str, Any]:
+        if self.task_dispatcher is not None:
+            queued = self.task_dispatcher.cancel("glioma", case_id)
+            if queued is not None and queued.get("status") == "cancelled":
+                with self._tasks_lock:
+                    handle = self._tasks.get(case_id)
+                    if handle is not None:
+                        handle.cancel_event.set()
+                current = self.case_service.read_status(case_id)
+                if current.status == CaseStatus.QUEUED:
+                    self.case_service.transition_status(
+                        case_id,
+                        CaseStatus.CANCELLED,
+                        "脑胶质瘤分割任务已取消",
+                        0,
+                    )
+                return {
+                    "case_id": case_id,
+                    "run_id": (queued.get("payload") or {}).get("run_id"),
+                    "status": "cancelled",
+                }
         with self._tasks_lock:
             handle = self._tasks.get(case_id)
-            if handle is None or handle.thread is None or not handle.thread.is_alive():
+            active_thread = bool(handle and handle.thread and handle.thread.is_alive())
+            active_dispatched_task = bool(
+                self.task_dispatcher is not None
+                and self.task_dispatcher.find_active_task("glioma", case_id) is not None
+            )
+            if handle is None or (not active_thread and not active_dispatched_task):
                 raise InferenceTaskNotFoundError(
                     "ACTIVE_INFERENCE_NOT_FOUND",
                     "该病例没有可以取消的活动推理任务",
@@ -387,8 +443,16 @@ class NnunetInferenceService:
         status = self.case_service.read_status(case_id)
         with self._tasks_lock:
             handle = self._tasks.get(case_id)
-            active = bool(handle and handle.thread and handle.thread.is_alive())
-            run_id = handle.run_id if handle else None
+            queued = (
+                self.task_dispatcher.find_active_task("glioma", case_id)
+                if self.task_dispatcher is not None
+                else None
+            )
+            active = bool(queued) or bool(handle and handle.thread and handle.thread.is_alive())
+            run_id = (
+                ((queued or {}).get("payload") or {}).get("run_id")
+                or (handle.run_id if handle else None)
+            )
         paths = self.case_service.paths_for(case_id, require_exists=True)
         record_path = paths.output / "inference.json"
         record = None
@@ -406,6 +470,52 @@ class NnunetInferenceService:
             "run_id": run_id or (record or {}).get("run_id"),
             "inference": record,
         }
+
+    def run_persisted_task(self, task: Dict[str, Any]) -> str:
+        """Run a task already claimed by the shared durable GPU dispatcher."""
+
+        case_id = str(task.get("case_id", ""))
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        run_id = str(payload.get("run_id", "") or "")
+        if not run_id:
+            run_id = f"run_{utc_now().strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+
+        current = self.case_service.read_status(case_id)
+        if int(task.get("recovery_count", 0) or 0) > 0 and current.status == CaseStatus.RUNNING:
+            self.case_service.recover_interrupted_inference(case_id)
+
+        try:
+            model = self._require_ready()
+        except Exception:
+            current = self.case_service.read_status(case_id)
+            if current.status in {CaseStatus.QUEUED, CaseStatus.RUNNING}:
+                self.case_service.transition_status(
+                    case_id,
+                    CaseStatus.FAILED,
+                    "脑胶质瘤分割恢复失败：模型不可用",
+                    100,
+                )
+            raise
+
+        handle = InferenceTaskHandle(
+            case_id=case_id,
+            run_id=run_id,
+            trace_id=str(task.get("trace_id", "")),
+        )
+        with self._tasks_lock:
+            self._tasks[case_id] = handle
+        self._run_task(handle, model)
+
+        final_status = self.case_service.read_status(case_id).status
+        if final_status == CaseStatus.COMPLETED:
+            return "completed"
+        if final_status == CaseStatus.CANCELLED:
+            return "cancelled"
+        raise NnunetServiceError(
+            "PERSISTED_TASK_NOT_COMPLETED",
+            "脑胶质瘤分割任务未完成",
+            {"status": final_status.value},
+        )
 
     def _build_command(self, input_dir: Path, output_dir: Path) -> list[str]:
         prefix = self.predict_command or resolve_predict_command()
