@@ -2,6 +2,7 @@ package com.ppgl.analyze.report;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -29,7 +30,7 @@ class ReportSchemaMigration implements ApplicationRunner {
                 """
                 SELECT COUNT(*)
                 FROM information_schema.columns
-                WHERE table_schema = DATABASE()
+                WHERE table_schema = SCHEMA()
                   AND table_name = 'analysis_results'
                   AND column_name = ?
                 """,
@@ -42,19 +43,37 @@ class ReportSchemaMigration implements ApplicationRunner {
     }
 
     private void ensureIndex(String indexName, String ddl) {
-        Integer count = jdbcTemplate.queryForObject(
-                """
-                SELECT COUNT(*)
-                FROM information_schema.statistics
-                WHERE table_schema = DATABASE()
-                  AND table_name = 'analysis_results'
-                  AND index_name = ?
-                """,
-                Integer.class,
-                indexName
-        );
+        Integer count = indexCount(indexName);
         if (count == null || count == 0) {
             jdbcTemplate.execute(ddl);
+        }
+    }
+
+    private Integer indexCount(String indexName) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.statistics
+                    WHERE table_schema = SCHEMA()
+                      AND table_name = 'analysis_results'
+                      AND index_name = ?
+                    """,
+                    Integer.class,
+                    indexName
+            );
+        } catch (BadSqlGrammarException ignored) {
+            return jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.indexes
+                    WHERE table_schema = SCHEMA()
+                      AND table_name = 'analysis_results'
+                      AND index_name = ?
+                    """,
+                    Integer.class,
+                    indexName
+            );
         }
     }
 }

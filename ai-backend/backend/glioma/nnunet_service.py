@@ -241,6 +241,7 @@ def _write_redacted_process_stream(stream: Any, destination: Path) -> None:
 class InferenceTaskHandle:
     case_id: str
     run_id: str
+    trace_id: str = ""
     cancel_event: Event = field(default_factory=Event)
     thread: Optional[Thread] = None
     process: Optional[subprocess.Popen] = None
@@ -257,6 +258,8 @@ class NnunetInferenceService:
         execution_lock: Lock | None = None,
         before_inference: Any | None = None,
         after_inference: Any | None = None,
+        on_task_queued: Any | None = None,
+        on_trace_event: Any | None = None,
     ):
         self.case_service = case_service
         self.config = config
@@ -265,6 +268,8 @@ class NnunetInferenceService:
         self.visualization_service = visualization_service
         self.before_inference = before_inference
         self.after_inference = after_inference
+        self.on_task_queued = on_task_queued
+        self.on_trace_event = on_trace_event
         self._tasks: Dict[str, InferenceTaskHandle] = {}
         self._tasks_lock = RLock()
         self._execution_lock = execution_lock or Lock()
@@ -313,7 +318,15 @@ class NnunetInferenceService:
                 {"missing_files": missing},
             )
 
-    def submit(self, case_id: str) -> Dict[str, Any]:
+    def _emit_trace(self, handle: InferenceTaskHandle, stage: str, status: str, details: Dict[str, Any] | None = None) -> None:
+        if not handle.trace_id or self.on_trace_event is None:
+            return
+        try:
+            self.on_trace_event(handle.trace_id, stage, status, details or {})
+        except Exception:
+            return
+
+    def submit(self, case_id: str, trace_id: str = "") -> Dict[str, Any]:
         model = self._require_ready()
         self._validate_case_input(case_id)
         with self._tasks_lock:
@@ -325,13 +338,16 @@ class NnunetInferenceService:
                 )
 
             run_id = f"run_{utc_now().strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
-            handle = InferenceTaskHandle(case_id=case_id, run_id=run_id)
+            handle = InferenceTaskHandle(case_id=case_id, run_id=run_id, trace_id=str(trace_id or ""))
             self.case_service.transition_status(
                 case_id,
                 CaseStatus.QUEUED,
                 "脑胶质瘤分割任务已进入队列",
                 0,
             )
+            if self.on_task_queued is not None:
+                self.on_task_queued("glioma", case_id)
+            self._emit_trace(handle, "task_queued", "completed", {"task": "脑胶质瘤分割"})
             thread = Thread(
                 target=self._run_task,
                 args=(handle, model),
@@ -464,6 +480,7 @@ class NnunetInferenceService:
                 lock_file = self.config.gpu_lock_file or (self.config.model_dir / ".gpu.lock")
                 gpu_lock = GpuFileLock(lock_file, f"inference:{case_id}:{handle.run_id}")
                 gpu_lock.acquire()
+                self._emit_trace(handle, "gpu_admission", "completed", {"device": self.config.device})
 
                 if self.before_inference is not None:
                     self.before_inference(lifecycle_log)
@@ -474,6 +491,12 @@ class NnunetInferenceService:
                     CaseStatus.RUNNING,
                     "正在进行脑胶质瘤分割",
                     10,
+                )
+                self._emit_trace(
+                    handle,
+                    "model_inference",
+                    "running",
+                    {"model": "nnU-Net 脑胶质瘤分割权重", "device": self.config.device},
                 )
                 command = self._build_command(paths.nnunet_input, prediction_dir)
                 record.update(
@@ -607,6 +630,25 @@ class NnunetInferenceService:
                 record["derived_output_warnings"] = derived_warnings
                 atomic_write_json(run_record_path, record)
                 atomic_write_json(current_record_path, record)
+                self._emit_trace(
+                    handle,
+                    "model_inference",
+                    "completed",
+                    {
+                        "model": "nnU-Net 脑胶质瘤分割权重",
+                        "duration_ms": round(float(record.get("duration_seconds", 0)) * 1000, 3),
+                        "derived_warning_count": len(derived_warnings),
+                    },
+                )
+                self._emit_trace(
+                    handle,
+                    "task_finished",
+                    "completed",
+                    {
+                        "task": "脑胶质瘤分割",
+                        "duration_ms": round(float(record.get("duration_seconds", 0)) * 1000, 3),
+                    },
+                )
                 if lifecycle_started and self.after_inference is not None:
                     self.after_inference(lifecycle_log)
                     lifecycle_finished = True
@@ -636,6 +678,15 @@ class NnunetInferenceService:
                         record["error"],
                         100,
                     )
+                self._emit_trace(
+                    handle,
+                    "task_finished",
+                    "failed",
+                    {
+                        "duration_ms": round(float(record.get("duration_seconds", 0)) * 1000, 3),
+                        "error_code": error_code,
+                    },
+                )
         finally:
             if lifecycle_started and not lifecycle_finished and self.after_inference is not None:
                 with self._execution_lock:
@@ -670,6 +721,7 @@ class NnunetInferenceService:
                 "脑胶质瘤分割任务已取消",
                 0,
             )
+        self._emit_trace(handle, "task_finished", "cancelled", {"task": "脑胶质瘤分割"})
 
     @staticmethod
     def _terminate_process_tree(process: subprocess.Popen) -> None:

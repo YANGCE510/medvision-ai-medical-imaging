@@ -168,6 +168,9 @@ def build_glioma_router(
     execution_lock: Lock,
     before_inference: Any | None = None,
     after_inference: Any | None = None,
+    on_task_queued: Any | None = None,
+    on_trace_start: Any | None = None,
+    on_trace_event: Any | None = None,
 ) -> APIRouter:
     cases_dir = _path_env("PPGL_GLIOMA_CASES_DIR", data_root / "brain-cases", data_root)
     trash_dir = _path_env("PPGL_GLIOMA_TRASH_DIR", data_root / "brain-trash", data_root)
@@ -213,6 +216,8 @@ def build_glioma_router(
         execution_lock=execution_lock,
         before_inference=before_inference,
         after_inference=after_inference,
+        on_task_queued=on_task_queued,
+        on_trace_event=on_trace_event,
     )
 
     router = APIRouter(prefix="/api/brain", tags=["brain-glioma"])
@@ -391,12 +396,22 @@ def build_glioma_router(
 
     @router.post("/cases/{case_id}/segment", status_code=202)
     async def start_segmentation(case_id: str, request: Request) -> dict[str, Any]:
+        trace_id = ""
         try:
             assert_access(case_id, request)
-            return await run_in_threadpool(inference_service.submit, case_id)
+            if on_trace_start is not None:
+                trace_id = str(on_trace_start(request, case_id) or "")
+            return await run_in_threadpool(inference_service.submit, case_id, trace_id)
         except HTTPException:
             raise
         except Exception as exc:
+            if trace_id and on_trace_event is not None:
+                on_trace_event(
+                    trace_id,
+                    "task_finished",
+                    "failed",
+                    {"error_code": getattr(exc, "code", type(exc).__name__)},
+                )
             raise _nnunet_error(exc) from exc
 
     @router.get("/cases/{case_id}/segmentation")

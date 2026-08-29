@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import time
 import traceback
 from typing import Any, Callable, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -40,8 +42,36 @@ def stream_event(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
-def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
+def build_report_router(
+    case_dir_for: Callable[[str], Path],
+    start_runtime_activity: Callable[..., str],
+    finish_runtime_activity: Callable[[str], None],
+    start_trace: Callable[..., str] | None = None,
+    finish_trace: Callable[..., None] | None = None,
+) -> APIRouter:
     router = APIRouter()
+
+    def report_trace(request: Request, case_id: str, question: str) -> str:
+        if start_trace is None:
+            return ""
+        return str(start_trace(
+            request,
+            "report_chat",
+            {
+                "case_id": case_id,
+                "model": os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "")),
+                "question_fingerprint": {"length": len(question or "")},
+            },
+        ) or "")
+
+    def finish_report_trace(trace_id: str, status: str, started_at: float, details: dict[str, Any]) -> None:
+        if not trace_id or finish_trace is None:
+            return
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        if status == "completed":
+            finish_trace(trace_id, status, duration_ms=duration_ms, result=details)
+        else:
+            finish_trace(trace_id, status, duration_ms=duration_ms, error=details)
 
     @router.get("/api/cases/{case_id}/report", response_class=PlainTextResponse)
     async def get_case_report(case_id: str):
@@ -102,7 +132,7 @@ def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
         return read_json(chat_path)
 
     @router.post("/api/cases/{case_id}/ai-report/chat")
-    async def chat_case_ai_report(case_id: str, payload: AiReportChatRequest):
+    async def chat_case_ai_report(case_id: str, request: Request, payload: AiReportChatRequest):
         case_dir = case_dir_for(case_id)
         result_path = case_dir / "output" / "result.json"
         ppgl_result_path = case_dir / "output" / "ppgl" / "result.json"
@@ -115,19 +145,32 @@ def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
         if not (output_dir / "ai_report.md").exists() and not (output_dir / "ai_report.json").exists():
             raise HTTPException(status_code=404, detail="请先生成 AI 报告，再进行 AI 问答")
 
+        activity_id = start_runtime_activity(
+            "report",
+            "AI 报告问答",
+            os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "")),
+        )
+        trace_id = report_trace(request, case_id, payload.question)
+        trace_started_at = time.perf_counter()
         try:
-            return chat_with_ai_report(case_dir, payload.question, payload.history)
+            response = chat_with_ai_report(case_dir, payload.question, payload.history)
+            finish_report_trace(trace_id, "completed", trace_started_at, {"model": os.environ.get("REPORT_OPENAI_MODEL", "")})
+            return response
         except RuntimeError as exc:
+            finish_report_trace(trace_id, "failed", trace_started_at, {"type": type(exc).__name__, "message": str(exc)[:240]})
             error_path = case_dir / "output" / "ai_report_chat_error.log"
             error_path.write_text(str(exc), encoding="utf-8")
             raise HTTPException(status_code=502, detail=str(exc))
         except Exception as exc:
+            finish_report_trace(trace_id, "failed", trace_started_at, {"type": type(exc).__name__, "message": str(exc)[:240]})
             error_path = case_dir / "output" / "ai_report_chat_error.log"
             error_path.write_text(traceback.format_exc(), encoding="utf-8")
             raise HTTPException(status_code=500, detail=f"AI 问答失败：{exc}")
+        finally:
+            finish_runtime_activity(activity_id)
 
     @router.post("/api/cases/{case_id}/ai-report/chat/stream")
-    async def stream_chat_case_ai_report(case_id: str, payload: AiReportChatRequest):
+    async def stream_chat_case_ai_report(case_id: str, request: Request, payload: AiReportChatRequest):
         case_dir = case_dir_for(case_id)
         result_path = case_dir / "output" / "result.json"
         if not result_path.exists():
@@ -141,6 +184,13 @@ def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
 
         def generate():
             answer_parts: list[str] = []
+            trace_id = report_trace(request, case_id, payload.question)
+            trace_started_at = time.perf_counter()
+            activity_id = start_runtime_activity(
+                "report",
+                "AI 报告问答",
+                os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "")),
+            )
             try:
                 direct = direct_ai_report_answer(case_dir, payload.question)
                 if direct is not None:
@@ -148,6 +198,7 @@ def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
                     for index in range(0, len(answer), 18):
                         yield stream_event({"type": "delta", "text": answer[index : index + 18]})
                     chat = save_ai_report_chat(case_dir, clean_question, answer, {**metadata, "stream": True})
+                    finish_report_trace(trace_id, "completed", trace_started_at, {"mode": "deterministic", "output_characters": len(answer)})
                     yield stream_event({"type": "done", "chat": chat})
                     return
 
@@ -170,15 +221,20 @@ def build_report_router(case_dir_for: Callable[[str], Path]) -> APIRouter:
                     answer,
                     {"provider": llm_provider(), "stream": True},
                 )
+                finish_report_trace(trace_id, "completed", trace_started_at, {"model": os.environ.get("REPORT_OPENAI_MODEL", ""), "output_characters": len(answer)})
                 yield stream_event({"type": "done", "chat": chat})
             except RuntimeError as exc:
+                finish_report_trace(trace_id, "failed", trace_started_at, {"type": type(exc).__name__, "message": str(exc)[:240]})
                 error_path = case_dir / "output" / "ai_report_chat_error.log"
                 error_path.write_text(str(exc), encoding="utf-8")
                 yield stream_event({"type": "error", "detail": str(exc)})
             except Exception as exc:
+                finish_report_trace(trace_id, "failed", trace_started_at, {"type": type(exc).__name__, "message": str(exc)[:240]})
                 error_path = case_dir / "output" / "ai_report_chat_error.log"
                 error_path.write_text(traceback.format_exc(), encoding="utf-8")
                 yield stream_event({"type": "error", "detail": f"AI 问答失败：{exc}"})
+            finally:
+                finish_runtime_activity(activity_id)
 
         return StreamingResponse(
             generate(),

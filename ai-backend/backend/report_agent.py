@@ -450,8 +450,16 @@ def llm_provider() -> str:
     return clean_provider(os.environ.get("CHAT_LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "openai_compat")))
 
 
+def rag_llm_provider() -> str:
+    return clean_provider(os.environ.get("RAG_LLM_PROVIDER", os.environ.get("CHAT_LLM_PROVIDER", "openai_compat")))
+
+
 def provider_for_scope(scope: str) -> str:
-    return report_llm_provider() if scope == "report" else llm_provider()
+    if scope == "report":
+        return report_llm_provider()
+    if scope == "rag":
+        return rag_llm_provider()
+    return llm_provider()
 
 
 def use_chat_completions_api(provider: str | None = None) -> bool:
@@ -461,12 +469,16 @@ def use_chat_completions_api(provider: str | None = None) -> bool:
 def model_for_scope(scope: str) -> str:
     if scope == "report":
         return os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "ppgl-qwen3-32b-q4:latest")).strip() or "ppgl-qwen3-32b-q4:latest"
+    if scope == "rag":
+        return os.environ.get("RAG_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "ppgl-qwen3-32b-q4:latest")).strip() or "ppgl-qwen3-32b-q4:latest"
     return os.environ.get("CHAT_OPENAI_MODEL", "ppgl-qwen3-32b-q4:latest").strip() or "ppgl-qwen3-32b-q4:latest"
 
 
 def base_url_for_scope(scope: str) -> str:
     if scope == "report":
         return normalize_base_url(os.environ.get("REPORT_OPENAI_BASE_URL", os.environ.get("CHAT_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")))
+    if scope == "rag":
+        return normalize_base_url(os.environ.get("RAG_OPENAI_BASE_URL", os.environ.get("CHAT_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")))
     return normalize_base_url(
         os.environ.get("CHAT_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
     )
@@ -475,18 +487,24 @@ def base_url_for_scope(scope: str) -> str:
 def api_key_for_scope(scope: str) -> str:
     if scope == "report":
         return normalize_api_key(os.environ.get("REPORT_OPENAI_API_KEY", os.environ.get("CHAT_OPENAI_API_KEY", "ollama")))
+    if scope == "rag":
+        return normalize_api_key(os.environ.get("RAG_OPENAI_API_KEY", os.environ.get("CHAT_OPENAI_API_KEY", "ollama")))
     return normalize_api_key(os.environ.get("CHAT_OPENAI_API_KEY", "ollama"))
 
 
 def timeout_for_scope(scope: str) -> float:
     if scope == "report":
         return float(os.environ.get("REPORT_OPENAI_TIMEOUT_SECONDS", os.environ.get("OPENAI_TIMEOUT_SECONDS", "120")))
+    if scope == "rag":
+        return float(os.environ.get("RAG_OPENAI_TIMEOUT_SECONDS", os.environ.get("CHAT_OPENAI_TIMEOUT_SECONDS", os.environ.get("OPENAI_TIMEOUT_SECONDS", "240"))))
     return float(os.environ.get("CHAT_OPENAI_TIMEOUT_SECONDS", os.environ.get("OPENAI_TIMEOUT_SECONDS", "240")))
 
 
 def reasoning_effort_for_scope(scope: str) -> str:
     if scope == "report":
         return os.environ.get("REPORT_OPENAI_REASONING_EFFORT", os.environ.get("OPENAI_REASONING_EFFORT", "xhigh")).strip().lower()
+    if scope == "rag":
+        return os.environ.get("RAG_OPENAI_REASONING_EFFORT", os.environ.get("CHAT_OPENAI_REASONING_EFFORT", os.environ.get("OPENAI_REASONING_EFFORT", ""))).strip().lower()
     return os.environ.get("CHAT_OPENAI_REASONING_EFFORT", os.environ.get("OPENAI_REASONING_EFFORT", "")).strip().lower()
 
 
@@ -1302,19 +1320,24 @@ def call_openai_report(context: dict[str, Any]) -> dict[str, Any]:
     return report
 
 
-def call_openai_text(prompt: str, max_output_tokens: int = 1600) -> tuple[str, dict[str, Any]]:
+def call_openai_text(
+    prompt: str,
+    max_output_tokens: int = 1600,
+    scope: str = "chat",
+) -> tuple[str, dict[str, Any]]:
     max_output_tokens = chat_output_token_limit(max_output_tokens)
-    if use_chat_completions_api(llm_provider()):
-        return call_chat_completions_text(prompt, max_output_tokens)
+    provider = provider_for_scope(scope)
+    if use_chat_completions_api(provider):
+        return call_chat_completions_text(prompt, max_output_tokens, scope=scope)
 
-    api_key = api_key_for_scope("chat")
+    api_key = api_key_for_scope(scope)
     if not api_key:
-        raise RuntimeError("CHAT_OPENAI_API_KEY is not set")
+        raise RuntimeError(f"{scope.upper()}_OPENAI_API_KEY is not set")
 
-    model = model_for_scope("chat")
-    reasoning_effort = reasoning_effort_for_scope("chat")
-    base_url = base_url_for_scope("chat")
-    timeout = timeout_for_scope("chat")
+    model = model_for_scope(scope)
+    reasoning_effort = reasoning_effort_for_scope(scope)
+    base_url = base_url_for_scope(scope)
+    timeout = timeout_for_scope(scope)
 
     body: dict[str, Any] = {
         "model": model,
@@ -1362,7 +1385,7 @@ def call_openai_text(prompt: str, max_output_tokens: int = 1600) -> tuple[str, d
     if not text:
         raise RuntimeError("LLM API returned an empty answer")
     metadata = {
-        "provider": llm_provider(),
+        "provider": provider,
         "model": model,
         "response_id": response_payload.get("id", ""),
     }
@@ -1446,8 +1469,13 @@ def stream_openai_text(prompt: str, max_output_tokens: int = 1600):
 
 def generate_ai_report(case_dir: Path) -> dict[str, Any]:
     context = compact_case_context(case_dir)
-    raw_report = call_openai_report(context)
-    report = normalize_generated_report(raw_report, context)
+    report = deterministic_report_fields(context)
+    report["_metadata"] = {
+        "provider": "deterministic_template",
+        "model": "",
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "source": "segmentation_results",
+    }
     report["report_markdown"] = render_report_markdown(report)
 
     output_dir = case_dir / "output"

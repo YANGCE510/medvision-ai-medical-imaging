@@ -54,7 +54,7 @@ public class AiGatewayController {
         );
     }
 
-    @RequestMapping({"/cases", "/cases/**", "/brain/**", "/rag/**", "/llm/**"})
+    @RequestMapping({"/cases", "/cases/**", "/brain/**", "/rag/**", "/llm/**", "/gpu-workbench", "/traces", "/traces/**"})
     public ResponseEntity<StreamingResponseBody> proxy(
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest request

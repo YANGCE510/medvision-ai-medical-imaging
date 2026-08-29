@@ -10,6 +10,8 @@ import ThreeDViewer from '../views/ThreeDViewer.vue'
 import ReportView from '../views/ReportView.vue'
 import GliomaUploadCase from '../views/GliomaUploadCase.vue'
 import GliomaCaseDetail from '../views/GliomaCaseDetail.vue'
+import GpuWorkbench from '../views/GpuWorkbench.vue'
+import AiTraceCenter from '../views/AiTraceCenter.vue'
 
 const KnowledgeBaseView = () => import('../views/KnowledgeBaseView.vue')
 
@@ -29,6 +31,14 @@ const routes = [
       {
         path: 'dashboard',
         component: Dashboard
+      },
+      {
+        path: 'gpu-workbench',
+        component: GpuWorkbench
+      },
+      {
+        path: 'ai-traces',
+        component: AiTraceCenter
       },
       {
         path: 'cases',

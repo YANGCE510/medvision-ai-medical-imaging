@@ -1,0 +1,44 @@
+{
+  "schema_version": "medvision_concurrency_evaluation_result_v1",
+  "generated_at": "2026-08-28T20:27:28+08:00",
+  "endpoint": "http://127.0.0.1:8000/api/rag/query",
+  "repeats": 1,
+  "levels": [
+    {
+      "concurrency": 1,
+      "request_count": 1,
+      "elapsed_s": 11.722,
+      "requests_per_second": 0.085,
+      "success": 1,
+      "success_rate": 1.0,
+      "average_wall_time_s": 11.721,
+      "p50_wall_time_s": 11.721,
+      "p95_wall_time_s": 11.721,
+      "failures": []
+    },
+    {
+      "concurrency": 3,
+      "request_count": 3,
+      "elapsed_s": 33.12,
+      "requests_per_second": 0.091,
+      "success": 3,
+      "success_rate": 1.0,
+      "average_wall_time_s": 26.934,
+      "p50_wall_time_s": 26.938,
+      "p95_wall_time_s": 32.501,
+      "failures": []
+    },
+    {
+      "concurrency": 5,
+      "request_count": 5,
+      "elapsed_s": 53.556,
+      "requests_per_second": 0.093,
+      "success": 5,
+      "success_rate": 1.0,
+      "average_wall_time_s": 41.183,
+      "p50_wall_time_s": 41.185,
+      "p95_wall_time_s": 52.318,
+      "failures": []
+    }
+  ]
+}

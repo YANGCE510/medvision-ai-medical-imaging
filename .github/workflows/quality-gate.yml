@@ -1,0 +1,80 @@
+name: Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    name: Python Trace Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Compile AI service source
+        run: |
+          python -m py_compile \
+            ai-backend/backend/core/ai_trace.py \
+            ai-backend/backend/main.py \
+            ai-backend/backend/glioma/router.py \
+            ai-backend/backend/glioma/nnunet_service.py \
+            ai-backend/backend/report/router.py
+      - name: Run privacy-aware Trace tests
+        run: python -m unittest discover -s ai-backend/tests -p 'test_*.py'
+
+  java-tests:
+    name: Java Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Run Spring Boot tests with H2
+        run: mvn -f frontend-javaweb/pom.xml test
+
+  frontend-build:
+    name: Vue Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend-vue-prototype/package-lock.json
+      - name: Install locked dependencies
+        working-directory: frontend-vue-prototype
+        run: npm ci
+      - name: Build Vue application
+        working-directory: frontend-vue-prototype
+        run: npm run build
+
+  secret-scan:
+    name: Secret and Sensitive Asset Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect committed credentials
+        uses: gitleaks/gitleaks-action@v2
+      - name: Reject protected data and model artifacts
+        shell: bash
+        run: |
+          forbidden_files="$(git ls-files | grep -E '\.(nii|nii\.gz|dcm|dicom|mha|mhd|nrrd|pth|pt|ckpt|onnx|engine|safetensors|sqlite|sqlite3|db)$' || true)"
+          private_env_files="$(git ls-files | grep -E '(^|/)\.env($|\.(local|development|production)$)' || true)"
+          if [ -n "$forbidden_files" ] || [ -n "$private_env_files" ]; then
+            echo 'Protected runtime data, model artifacts, databases, or private .env files must not be committed.'
+            printf '%s\n%s\n' "$forbidden_files" "$private_env_files"
+            exit 1
+          fi

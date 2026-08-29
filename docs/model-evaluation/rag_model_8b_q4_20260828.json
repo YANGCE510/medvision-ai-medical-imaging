@@ -1,0 +1,918 @@
+{
+  "schema_version": "medvision_rag_evaluation_result_v1",
+  "generated_at": "2026-08-28T22:02:20+08:00",
+  "endpoint": "http://127.0.0.1:8000/api/rag/query",
+  "case_library": "/mnt/20T/医智工坊-PPGL-Assist：智能影像辅助分析系统/代码/ai-backend/evaluation/rag_evaluation_cases.json",
+  "retrieval_mode": "hybrid_rerank",
+  "top_k": 5,
+  "retrieve_k": 20,
+  "cases": [
+    {
+      "id": "rag-001",
+      "question": "知识库中如何区分位于肾上腺内的嗜铬细胞瘤与位于肾上腺外的副神经节瘤？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 14.971,
+      "answer": "区分位于肾上腺内的嗜铬细胞瘤（PCC）与位于肾上腺外的副神经节瘤（PGL）主要依据肿瘤的位置及其来源。以下是关键区分点：\n\n1. **肿瘤位置**：  \n   - 嗜铬细胞瘤（PCC）起源于肾上腺髓质的嗜铬细胞，通常位于肾上腺内 [1]。  \n   - 副神经节瘤（PGL）起源于肾上腺外的副交感神经节，常见于头颈部、腹部等部位，如颈动脉体、颈静脉球、腹膜后等 [1]。  \n\n2. **诊断方法**：  \n   - 当肿瘤位于肾上腺时，诊断为嗜铬细胞瘤；若肿瘤位于肾上腺外，并通过 $^{123}$I-MIBG 显像或 $^{18}$F-FDG PET 确认，则诊断为副神经节瘤 [2]。  \n\n3. **遗传与分子特征**：  \n   - 副神经节瘤（PGL）与特定基因突变（如 SDHD、SDHB 等）相关，这些突变可能导致慢性缺氧状态，进而促进肿瘤形成 [5]。  \n   - 嗜铬细胞瘤与副神经节瘤在遗传上可能有重叠，但具体基因突变类型和临床表现有所不同 [5]。  \n\n4. **临床表现**：  \n   - 两者均可分泌过量儿茶酚胺，导致高血压、心悸等症状，但副神经节瘤可能更常表现为功能性或非功能性肿瘤，且部分病例可能无症状 [1]。  \n\n综上，区分 PCC 与 PGL 的核心在于肿瘤的解剖位置及影像学证据。若证据不足，",
+      "retrieved_document_ids": [
+        "PMC7729715",
+        "PMC12819074",
+        "PMC10335895",
+        "PMC12819074",
+        "PMC10335895"
+      ],
+      "cited_document_ids": [
+        "PMC7729715",
+        "PMC12819074",
+        "PMC10335895"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 3,
+        "cited_ids": [
+          1,
+          2,
+          5
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.6,
+        "mean_top_score": 0.2126,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 1657.68,
+        "bm25": 80.5,
+        "reranker": 5148.39,
+        "total": 6886.6
+      }
+    },
+    {
+      "id": "rag-002",
+      "question": "PPGL 相关症状或腹部肿块出现时，知识库提到可测量哪一类生化指标进行筛查确认？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 7.164,
+      "answer": "PPGL 相关症状或腹部肿块出现时，知识库提到可测量的生化指标是 **血浆游离甲基肾上腺素（plasma free metanephrines）或 24 小时尿液分离甲基肾上腺素（24-h urinary fractioned metanephrines）** 进行筛查确认 [1]。  \n此外，知识库还提到 **血浆或尿液中的 normetanephrines（ normetanephrines）** 也可用于筛查 [2]。  \n这些指标的敏感性较高，分别为 99%（血浆）和 97%（尿液），被认为是 PPGL 的金标准检测方法 [1]。  \n若上述指标未见明显异常，可考虑测量 **血浆或尿液中的 3-MT（3-methoxytyramine）** 作为补充 [2]。  \n此外，**血浆或尿液中的香草基杏仁酸（vanillylmandelic acid, VMA）** 以及 **血浆中的铬粒素 A（chromogranin A, ChrA）** 也可作为辅助检测手段 [1]。",
+      "retrieved_document_ids": [
+        "PMC8377944",
+        "PMC7729715",
+        "PMC8377944",
+        "PMC10335895",
+        "PMC12819074"
+      ],
+      "cited_document_ids": [
+        "PMC8377944",
+        "PMC7729715"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": false,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          2
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.7634,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 130.4,
+        "bm25": 2.46,
+        "reranker": 4992.47,
+        "total": 5125.39
+      }
+    },
+    {
+      "id": "rag-003",
+      "question": "PPGL 的明确诊断为什么不能只依赖单一生化结果，知识库建议结合哪两类检查？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.377,
+      "answer": "PPGL 的明确诊断不能只依赖单一生化结果，因为单一的生化指标可能无法全面反映肿瘤的性质和功能状态。知识库建议结合以下两类检查：\n\n1. **影像学检查**：如 MIBG 显像、PET-CT 或其他功能性成像技术，用于定位肿瘤并检测多发性或转移性病变 [3]。\n\n2. **遗传学检查**：包括基因检测，用于识别与 PPGL 相关的遗传突变（如 SDHB、VHL、RET 等），有助于评估遗传性综合征、转移风险及家族成员的筛查 [2]。",
+      "retrieved_document_ids": [
+        "PMC8090459",
+        "PMC8377944",
+        "PMC8377944",
+        "PMC12819074",
+        "PMC12819074"
+      ],
+      "cited_document_ids": [
+        "PMC8377944",
+        "PMC8377944"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": false,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          2,
+          3
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.5928,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 52.0,
+        "bm25": 1.34,
+        "reranker": 4082.63,
+        "total": 4136.01
+      }
+    },
+    {
+      "id": "rag-004",
+      "question": "知识库列出的哪些因素可能影响 PPGL 内分泌检测值？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 7.889,
+      "answer": "影响 PPGL 内分泌检测值的因素包括以下方面：\n\n1. **年龄**：年轻年龄与转移风险相关，而老年则成为独立预后因素之一 [1]。\n\n2. **肿瘤大小**：肿瘤大小 ≥4–7 cm 与转移风险相关，较大肿瘤尺寸是独立预后因素之一 [1]。\n\n3. **肿瘤类型**：非儿茶酚胺产生型 PPGL 更容易发生转移，而头颈部位的副神经节瘤（HNPGL）转移率较低 [1]。\n\n4. **生化指标**：\n   - 血浆去甲肾上腺素和 3-甲氧基酪胺（3-MT）水平升高与转移风险相关 [1]。\n   - 血浆分数化去甲肾上腺素水平 ≥5 倍上限与转移风险相关 [1]。\n   - 3-MT 血浆水平升高与 HNPGL 的疾病特异性生存率相关 [1]。\n\n5. **基因突变**：\n   - SDHB 基因突变与胸腹部位的副神经节瘤相关，并且具有较高的转移率（35–75%）[4]。\n   - SDHD 基因突变与头颈部位的副神经节瘤相关，尤其是颈动脉体瘤 [4]。\n   - VHL 基因突变与早期发病、双侧 PCC 和非肾上腺素分泌型生化表型相关 [4]。\n   - RET 基因突变与 MEN2 相关的 PCC 相关 [4]。\n\n6. **临床症状和体征**：\n   - 某些临床症状和体征（如苍白、多汗、震颤、心悸、恶心等）",
+      "retrieved_document_ids": [
+        "PMC12819074",
+        "PMC8905338",
+        "PMC7729715",
+        "PMC12819074",
+        "PMC10335895"
+      ],
+      "cited_document_ids": [
+        "PMC12819074",
+        "PMC12819074"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          4
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.5341,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 130.4,
+        "bm25": 1.67,
+        "reranker": 4720.61,
+        "total": 4852.74
+      }
+    },
+    {
+      "id": "rag-005",
+      "question": "为什么 PPGL 相关资料强调术后需要长期随访？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 7.271,
+      "answer": "PPGL（嗜铬细胞瘤和副神经节瘤）相关资料强调术后需要长期随访的原因主要包括以下几点：\n\n1. **复发风险较高**：PPGL即使在切除原发肿瘤后，仍有15–20%的病例可能发生复发，且部分病例可能在手术数十年后才复发，因此需要长期随访 [1]。\n\n2. **复发可能伴随远处转移**：复发多表现为远处转移，尤其在遗传性PPGL患者中，复发率高达47.5% [1]。长期随访有助于早期发现和处理转移病灶。\n\n3. **随访内容包括生化和影像学检查**：术后需定期进行生化检测（如血浆游离分数化甲基肾上腺素、3-甲氧基酪胺、嗜铬粒蛋白A等）和影像学检查（如CT、MRI），以监测是否有复发或转移 [1]。\n\n4. **特定高风险人群需终身随访**：对于年轻患者、携带致病性遗传变异、肿瘤直径≥5 cm或为副神经节瘤（PGL）的患者，建议终身随访 [1]。\n\n5. **长期随访有助于改善预后**：即使术后生化指标恢复正常，仍需定期随访，以监测可能的复发或转移，从而改善长期预后 [1]。\n\n6. **遗传因素影响复发风险**：携带某些致病性基因（如SDHB、VHL、RET等）的患者，其复发风险较高，因此需要更严格的随访 [1]。\n\n综上，PPGL术后长期随访是基于其较高的复发率和潜在的转移风险，旨在早期发现复发或转移，从而提高患者的生存率和生活质量。",
+      "retrieved_document_ids": [
+        "PMC12819074",
+        "PMC10252063",
+        "PMC10335895",
+        "PMC10335895",
+        "PMC12819074"
+      ],
+      "cited_document_ids": [
+        "PMC12819074"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          1
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.677,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 48.61,
+        "bm25": 1.45,
+        "reranker": 4449.22,
+        "total": 4499.34
+      }
+    },
+    {
+      "id": "rag-006",
+      "question": "PPGL 临床实践指南的制定团队涵盖哪些专业方向？",
+      "expected_document_ids": [
+        "PMC12819074"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.953,
+      "answer": "PPGL临床实践指南的制定团队涵盖的专业方向包括内分泌与代谢、高血压、泌尿外科、内分泌外科、放射学、核医学、遗传医学和病理学等领域。这些专业方向的专家共同参与了指南的制定工作，以确保内容的全面性和专业性 [1]。\n\n此外，根据其他指南的制定情况，PPGL的管理通常需要多学科团队的协作，包括内分泌科医生、放射科医生、介入放射科医生、核医学医生、麻醉医生、遗传学家、泌尿外科/肿瘤外科医生、头颈外科/神经外科医生（针对头颈部位的PGL）、胸外科医生（针对胸腔部位的PGL）、重症监护医生、病理学家、临床肿瘤科医生、放射治疗医生和心理学家等 [2]。\n\n在韩国，PPGL指南的制定团队由内分泌学会、外科学会、核医学学会、病理学会、放射学会和实验室医学学会等多学科专家组成 [4]。",
+      "retrieved_document_ids": [
+        "PMC12819074",
+        "PMC10335895",
+        "PMC12819074",
+        "PMC8090459",
+        "PMC12819074"
+      ],
+      "cited_document_ids": [
+        "PMC12819074",
+        "PMC10335895",
+        "PMC8090459"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 3,
+        "cited_ids": [
+          1,
+          2,
+          4
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.6,
+        "mean_top_score": 0.7224,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 48.41,
+        "bm25": 1.56,
+        "reranker": 4263.01,
+        "total": 4313.03
+      }
+    },
+    {
+      "id": "rag-007",
+      "question": "PPGL 的靶向 NGS 基础基因面板中包含哪些 SDHx 相关基因？",
+      "expected_document_ids": [
+        "PMC8090459"
+      ],
+      "http_status": 200,
+      "wall_time_s": 8.385,
+      "answer": "PPGL 的靶向 NGS 基础基因面板中包含的 SDHx 相关基因包括：SDHA、SDHB、SDHC、SDHD [1]。这些基因属于 succinate dehydrogenase (SDHx) 基因家族，编码线粒体酶 succinate dehydrogenase 的四个亚基，与 hereditary PPGL 的发病机制密切相关 [4]。",
+      "retrieved_document_ids": [
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8205850",
+        "PMC12819074"
+      ],
+      "cited_document_ids": [
+        "PMC8090459",
+        "PMC8205850"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          4
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.9598,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 187.36,
+        "bm25": 1.08,
+        "reranker": 7183.27,
+        "total": 7371.76
+      }
+    },
+    {
+      "id": "rag-008",
+      "question": "若 PPGL 靶向 NGS 未找到主要突变，知识库提到可进一步考虑什么遗传学研究？",
+      "expected_document_ids": [
+        "PMC8090459"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.91,
+      "answer": "如果 PPGL 靶向 NGS 未找到主要突变，知识库建议可进一步考虑**全外显子组测序（Whole-Exome Sequencing, WES）或全基因组测序（Whole-Genome Sequencing, WGS）**以提高对可能变异的病理性理解 [1]。这尤其适用于那些在初步靶向 NGS 检测中未发现明确突变的患者，因为这些更全面的遗传学研究可能揭示之前未被检测到的变异 [1]。",
+      "retrieved_document_ids": [
+        "PMC8090459",
+        "PMC8377944",
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8090459"
+      ],
+      "cited_document_ids": [
+        "PMC8090459"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          1
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.6932,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 286.6,
+        "bm25": 2.16,
+        "reranker": 5457.61,
+        "total": 5746.43
+      }
+    },
+    {
+      "id": "rag-009",
+      "question": "PPGL 诊断联合立场声明中提到哪些进展有助于发现多灶或转移性病变？",
+      "expected_document_ids": [
+        "PMC8090459"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.433,
+      "answer": "PPGL 诊断联合立场声明中提到的进展，有助于发现多灶或转移性病变的包括以下内容：\n\n1. 生化检测、功能成像和遗传检测方面取得了重大进展，使得能够更准确地诊断 PPGL，检测多灶或转移性病变，并更好地预测预后 [1]。\n\n2. 血浆 3-甲氧基酪胺（3-methoxytyramine）水平升高与转移性 PPGL 的高风险相关。在一项欧洲队列研究中，105 名转移性 PPGL 患者表现出显著更高的血浆 3-甲氧基酪胺和尿液多巴胺水平。转移性 PPGL 的平均血浆 3-甲氧基酪胺水平比非转移性 PPGL 高近 4 倍 [3]。\n\n3. 遗传检测的进步改变了 PPGL 的遗传检测范式。推荐使用基于当前证据水平的靶向 NGS 基因面板进行遗传检测，包括基本面板和扩展面板，有助于识别与 PPGL 相关的基因突变，从而辅助诊断和评估转移风险 [4]。\n\n这些进展共同促进了对多灶或转移性病变的早期发现和准确诊断。",
+      "retrieved_document_ids": [
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8090459",
+        "PMC10335895"
+      ],
+      "cited_document_ids": [
+        "PMC8090459",
+        "PMC8090459",
+        "PMC8090459"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 3,
+        "cited_ids": [
+          1,
+          3,
+          4
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.6,
+        "mean_top_score": 0.8521,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 176.99,
+        "bm25": 2.12,
+        "reranker": 4176.4,
+        "total": 4355.56
+      }
+    },
+    {
+      "id": "rag-010",
+      "question": "PPGL 遗传检测的基础面板除了 SDHx 外，还包含哪些常见易感基因？",
+      "expected_document_ids": [
+        "PMC8090459"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.067,
+      "answer": "PPGL 遗传检测的基础面板除了 SDHx 外，还包含以下常见易感基因：VHL、RET、TMEM127、MAX、EPAS1、FH、NF1、MDH2、KIF1B、HRAS、MERTK、MET、SLC25A11、ATM、DLST、EGLN1、EGLN2、TP53 [1]。这些基因与 PPGL 的发生密切相关，并且在遗传性 PPGL 中具有重要的临床意义。",
+      "retrieved_document_ids": [
+        "PMC12819074",
+        "PMC8205850",
+        "PMC8377944",
+        "PMC10335895",
+        "PMC11558956"
+      ],
+      "cited_document_ids": [
+        "PMC12819074"
+      ],
+      "retrieval_hit": false,
+      "valid_citation": true,
+      "expected_source_cited": false,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          1
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.7626,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 49.61,
+        "bm25": 1.92,
+        "reranker": 4842.57,
+        "total": 4894.16
+      }
+    },
+    {
+      "id": "rag-011",
+      "question": "知识库认为 PCC/PGL 个体化管理时，除肿瘤大小外还应考虑哪些因素？",
+      "expected_document_ids": [
+        "PMC6827093"
+      ],
+      "http_status": 200,
+      "wall_time_s": 7.402,
+      "answer": "在个体化管理 PCC/PGL 时，除肿瘤大小外，还应考虑以下因素：\n\n1. 肿瘤的位置（肾上腺 vs. 非肾上腺）[1]  \n2. 肿瘤的多发性 [1]  \n3. 首次诊断的年龄 [1]  \n4. 是否存在转移性疾病（包括肿瘤负荷）[1]  \n5. 患者的遗传突变背景（如 SDHx、VHL、RET 等基因突变）[1]  \n6. 患者的年龄和整体健康状况 [2]  \n7. 是否存在颅神经功能障碍 [2]  \n8. 肿瘤分期和多发性 [2]  \n9. 患者偏好 [2]  \n10. 肿瘤的生物学行为（如是否为功能性或非功能性）[4]  \n11. 患者的症状表现（如高血压、头痛、心悸等）[4]  \n12. 肿瘤的代谢特征（如是否分泌儿茶酚胺）[4]  \n13. 分子分型（如伪缺氧相关簇、激酶信号相关簇、Wnt 信号相关簇）[1]  \n14. 患者的影像学特征（如 PET/CT 类型）[5]  \n15. 患者的肿瘤生物学行为（如转移风险）[5]  \n16. 患者的治疗反应和随访需求 [5]  \n\n以上因素均会影响 PCC/PGL 的诊断、筛查、分期、随访和治疗选择。",
+      "retrieved_document_ids": [
+        "PMC6827093",
+        "PMC8905338",
+        "PMC11558956",
+        "PMC6827093",
+        "PMC8905338"
+      ],
+      "cited_document_ids": [
+        "PMC6827093",
+        "PMC8905338",
+        "PMC6827093",
+        "PMC8905338"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 4,
+        "cited_ids": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.8,
+        "mean_top_score": 0.7558,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 125.66,
+        "bm25": 2.06,
+        "reranker": 4428.3,
+        "total": 4556.07
+      }
+    },
+    {
+      "id": "rag-012",
+      "question": "知识库中推荐用于 PCC/PGL 诊断的血浆检测指标包括哪些代谢物？",
+      "expected_document_ids": [
+        "PMC6827093"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.129,
+      "answer": "知识库中推荐用于 PCC/PGL 诊断的血浆检测指标包括以下代谢物：\n\n- **normetanephrine**（ normetanephrine）[1]\n- **metanephrine**（metanephrine）[1]\n- **3-methoxytyramine**（3-methoxytyramine）[1]\n- **adrenaline**（adrenaline）[3]\n- **noradrenaline**（noradrenaline）[3]\n\n这些代谢物的检测有助于 PCC/PGL 的生化诊断和随访。此外，对于某些特定情况（如 SDHx 突变携带者或疑似转移性肿瘤），**3-methoxytyramine** 的血浆水平具有更高的诊断价值 [2]。",
+      "retrieved_document_ids": [
+        "PMC6827093",
+        "PMC6827093",
+        "PMC12819074",
+        "PMC6827093",
+        "PMC6827093"
+      ],
+      "cited_document_ids": [
+        "PMC6827093",
+        "PMC6827093",
+        "PMC12819074"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 3,
+        "cited_ids": [
+          1,
+          2,
+          3
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.6,
+        "mean_top_score": 0.8438,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 58.16,
+        "bm25": 2.03,
+        "reranker": 4580.2,
+        "total": 4640.45
+      }
+    },
+    {
+      "id": "rag-013",
+      "question": "PCC 和 PGL 在解剖起源上有什么区别？",
+      "expected_document_ids": [
+        "PMC6827093"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.988,
+      "answer": "PCC（嗜铬细胞瘤）和PGL（副神经节瘤）在解剖起源上有明显区别。PCC起源于肾上腺髓质的嗜铬细胞，而PGL起源于非肾上腺的嗜铬组织[1]。具体而言，PGL可以来源于交感神经节（85%位于膈肌以下）或副交感神经节（头颈部副神经节瘤）[2]。\n\n此外，PGL根据其来源可分为头颈部（HN）PGL和非头颈部PGL。头颈部PGL主要来源于副交感神经节，而大多数非头颈部PGL来源于交感神经节[2]。",
+      "retrieved_document_ids": [
+        "PMC7729715",
+        "PMC6827093",
+        "PMC11558956",
+        "PMC11558956",
+        "PMC11558956"
+      ],
+      "cited_document_ids": [
+        "PMC7729715",
+        "PMC6827093"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          2
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.867,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 48.56,
+        "bm25": 1.3,
+        "reranker": 4565.48,
+        "total": 4615.4
+      }
+    },
+    {
+      "id": "rag-014",
+      "question": "知识库中列举了哪些与 PCC/PGL 转移风险较高相关的因素？",
+      "expected_document_ids": [
+        "PMC6827093"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.712,
+      "answer": "根据知识库中的信息，与 PCC/PGL 转移风险较高相关的因素包括以下几点：\n\n1. **肿瘤大小**：肿瘤直径 ≥5–6 cm 的患者转移风险较高 [2]。\n2. **肿瘤位置**：位于非肾上腺部位（即外肾上腺性 PGL）的肿瘤转移风险较高 [2]。\n3. **年龄**：年轻患者（<20 岁）转移风险较高 [2]。\n4. **肿瘤多发性**：多发性肿瘤与较高的转移风险相关 [2]。\n5. **生化表型**：具有去甲肾上腺素能或多巴胺能生化表型的肿瘤转移风险较高 [2]。\n6. **高染色素 A 水平**：高血清铬粒素 A 水平与转移风险增加相关 [2]。\n7. **基因突变**：与假缺氧簇 1 相关的胚系突变（尤其是 SDHA/B 突变）与较高的转移风险和不良预后相关 [2]。\n8. **肿瘤类型**：由 SDHA/B 基因突变引起的肿瘤转移风险较高 [5]。\n\n以上因素在临床管理中具有重要意义，尤其在制定随访和治疗方案时需要综合考虑。",
+      "retrieved_document_ids": [
+        "PMC6827093",
+        "PMC6827093",
+        "PMC11558956",
+        "PMC11558956",
+        "PMC6827093"
+      ],
+      "cited_document_ids": [
+        "PMC6827093",
+        "PMC6827093"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          2,
+          5
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.6205,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 76.98,
+        "bm25": 1.22,
+        "reranker": 4308.37,
+        "total": 4386.62
+      }
+    },
+    {
+      "id": "rag-015",
+      "question": "术前 α 受体阻滞相关系统综述主要评估的是 PPGL 管理中的哪个阶段？",
+      "expected_document_ids": [
+        "PMC10389437"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.366,
+      "answer": "术前 α 受体阻滞相关系统综述主要评估的是 PPGL 管理中的术前准备阶段，特别是术前 α-阻滞剂的使用对术中血流动力学稳定性及术后并发症的影响 [1]。该综述旨在评估 α-阻滞剂在术前使用是否优于不使用，以减少术中血流动力学不稳定和心血管并发症的风险 [2]。",
+      "retrieved_document_ids": [
+        "PMC10389437",
+        "PMC10389437",
+        "PMC12819074",
+        "PMC10335895",
+        "PMC10389437"
+      ],
+      "cited_document_ids": [
+        "PMC10389437",
+        "PMC10389437"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          2
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.8574,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 115.35,
+        "bm25": 1.93,
+        "reranker": 4380.93,
+        "total": 4498.27
+      }
+    },
+    {
+      "id": "rag-016",
+      "question": "关于 PPGL 术前 α 受体阻滞，知识库中的文献类型是什么？",
+      "expected_document_ids": [
+        "PMC10389437"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.024,
+      "answer": "关于 PPGL 术前 α 受体阻滞，知识库中的文献类型是随机对照试验（RCTs）、非随机的前瞻性研究和回顾性研究 [1]。这些研究比较了术前使用 α 受体阻滞剂与不使用 α 受体阻滞剂在病理确诊的 PPGL 患者中的效果，主要关注术中血流动力学和/或围术期发病率和死亡率。",
+      "retrieved_document_ids": [
+        "PMC10389437",
+        "PMC10389437",
+        "PMC10389437",
+        "PMC10389437",
+        "PMC10389437"
+      ],
+      "cited_document_ids": [
+        "PMC10389437"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          1
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.9422,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 52.01,
+        "bm25": 1.62,
+        "reranker": 4073.79,
+        "total": 4127.47
+      }
+    },
+    {
+      "id": "rag-017",
+      "question": "SDHx 突变携带者共识主要讨论哪类人群的筛查和随访？",
+      "expected_document_ids": [
+        "PMC8205850"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.916,
+      "answer": "SDHx突变携带者共识主要讨论的是**无症状的SDHx突变携带者**的筛查和随访。这一共识聚焦于如何对这些无症状个体进行临床、生化和影像学的筛查以及长期随访管理，以降低其患嗜铬细胞瘤（PPGL）及其他相关肿瘤（如肾细胞癌、胃肠道间质瘤等）的风险[1]。\n\n共识涵盖了多个方面，包括：\n- 无症状携带者的首次基因检测年龄；\n- 适合的生化和影像学检查方法；\n- 对罕见SDHx相关肿瘤的筛查；\n- 老年人的管理；\n- 儿童的特殊关注；\n- 妊娠前的筛查建议[2]。\n\n此外，共识还强调了对无症状携带者进行定期生化检测和临床检查的重要性，并指出由于缺乏充分的证据，需要通过国际多中心研究进一步验证这些筛查和随访策略[4]。",
+      "retrieved_document_ids": [
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850"
+      ],
+      "cited_document_ids": [
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 3,
+        "cited_ids": [
+          1,
+          2,
+          4
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.6,
+        "mean_top_score": 0.9871,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 45.18,
+        "bm25": 1.13,
+        "reranker": 4235.67,
+        "total": 4282.04
+      }
+    },
+    {
+      "id": "rag-018",
+      "question": "SDHx 突变携带者相关共识关注的核心管理主题是什么？",
+      "expected_document_ids": [
+        "PMC8205850"
+      ],
+      "http_status": 200,
+      "wall_time_s": 7.086,
+      "answer": "SDHx突变携带者相关共识关注的核心管理主题是**对无症状的SDHx突变携带者进行标准化的初始筛查和随访**。该共识旨在为临床医生提供指导，以统一全球临床实践，并针对不同SDHx突变类型制定适当的筛查和随访策略。具体包括以下几个方面：\n\n1. **初始筛查**：建议对无症状的SDHx突变携带者进行定期的生化检测和临床检查，包括测量血压、检测血浆或尿液中的游离去甲肾上腺素和3-甲氧基酪胺等指标，并进行从颅底到骨盆的磁共振成像（MRI）检查。对于儿童，筛查应在特定年龄开始，如SDHB突变携带者在6-10岁，SDHA/C/D突变携带者在10-15岁[1]。\n\n2. **随访计划**：对于无症状的SDHx突变携带者，建议定期进行临床检查、生化检测和影像学检查。例如，成人每12个月进行一次临床检查和生化检测，每24-36个月进行一次MRI检查；儿童则每12个月进行一次临床检查，每24个月进行一次生化检测，每24-36个月进行一次MRI检查[5]。\n\n3. **影像学检查**：共识推荐使用MRI（从颅底到骨盆）作为主要的影像学工具，且建议使用扩散加权成像以提高敏感性。对于肺部转移的筛查，建议结合低剂量胸部CT和MRI检查，并在条件允许的情况下使用[68Ga]-DOTA-SSA-PET/CT[5]。\n\n4. **特殊人群管理**：SDHB突变携带者因具有",
+      "retrieved_document_ids": [
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8205850",
+        "PMC8905338"
+      ],
+      "cited_document_ids": [
+        "PMC8205850",
+        "PMC8905338"
+      ],
+      "retrieval_hit": true,
+      "valid_citation": true,
+      "expected_source_cited": true,
+      "evidence_assessment": {
+        "level": "high",
+        "level_text": "证据较充分",
+        "cited_count": 2,
+        "cited_ids": [
+          1,
+          5
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.4,
+        "mean_top_score": 0.9525,
+        "warnings": []
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 49.65,
+        "bm25": 1.69,
+        "reranker": 4215.62,
+        "total": 4267.01
+      }
+    },
+    {
+      "id": "rag-019",
+      "question": "PPGL 的临床表现到诊断综述主要讨论哪两个连续环节？",
+      "expected_document_ids": [
+        "PMC7729715"
+      ],
+      "http_status": 200,
+      "wall_time_s": 5.303,
+      "answer": "PPGL 的临床表现到诊断综述主要讨论的两个连续环节是 **临床表现** 和 **诊断** [1]。具体来说，临床表现涉及症状的识别与评估，如高血压、头痛、心悸等，而诊断则包括实验室检查、影像学检查以及遗传学评估等手段 [1]。",
+      "retrieved_document_ids": [
+        "PMC10335895",
+        "PMC8905338",
+        "PMC12819074",
+        "PMC10335895",
+        "PMC10335895"
+      ],
+      "cited_document_ids": [
+        "PMC10335895"
+      ],
+      "retrieval_hit": false,
+      "valid_citation": true,
+      "expected_source_cited": false,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          1
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.5871,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 57.23,
+        "bm25": 1.8,
+        "reranker": 4456.07,
+        "total": 4515.17
+      }
+    },
+    {
+      "id": "rag-020",
+      "question": "PPGL 手术后长期结局研究主要关注治疗后的哪类时间维度结果？",
+      "expected_document_ids": [
+        "PMC10252063"
+      ],
+      "http_status": 200,
+      "wall_time_s": 6.055,
+      "answer": "PPGL 手术后长期结局研究主要关注治疗后的**长期随访时间维度结果**，包括复发率、转移风险、生存率以及长期并发症等。具体而言，研究关注的是术后**长期随访期间的复发和转移情况**，以及患者在术后多年内的生存状况。\n\n术后长期随访通常建议至少**10年**，对于某些高风险患者（如年轻患者、肿瘤直径≥5 cm、PGL、遗传性变异阳性等），则需要**终身随访**。此外，研究还关注术后**生化指标的稳定性和影像学检查结果**，以评估肿瘤是否复发或转移[3]。\n\n综上，PPGL 手术后长期结局研究主要关注的是**术后长期随访期间的复发、转移、生存率及并发症等时间维度结果**。",
+      "retrieved_document_ids": [
+        "PMC10335895",
+        "PMC12819074",
+        "PMC12819074",
+        "PMC12819074",
+        "PMC8905338"
+      ],
+      "cited_document_ids": [
+        "PMC12819074"
+      ],
+      "retrieval_hit": false,
+      "valid_citation": true,
+      "expected_source_cited": false,
+      "evidence_assessment": {
+        "level": "medium",
+        "level_text": "证据需复核",
+        "cited_count": 1,
+        "cited_ids": [
+          3
+        ],
+        "retrieved_count": 5,
+        "citation_coverage": 0.2,
+        "mean_top_score": 0.5949,
+        "warnings": [
+          "回答引用覆盖偏低，建议查看右侧原始证据"
+        ]
+      },
+      "model": "ppgl-qwen3-8b-q4:latest",
+      "retrieval_latency_ms": {
+        "dense": 165.78,
+        "bm25": 1.11,
+        "reranker": 4398.93,
+        "total": 4565.86
+      }
+    }
+  ],
+  "summary": {
+    "total": 20,
+    "success": 20,
+    "success_rate": 1.0,
+    "retrieval_hits": 17,
+    "retrieval_hit_rate": 0.85,
+    "valid_citations": 20,
+    "valid_citation_rate": 1.0,
+    "expected_sources_cited": 15,
+    "expected_source_cited_rate": 0.75,
+    "average_wall_time_s": 6.87,
+    "p95_wall_time_s": 8.714
+  }
+}

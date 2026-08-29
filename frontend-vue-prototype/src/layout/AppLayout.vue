@@ -22,6 +22,16 @@
           <span>系统首页</span>
         </el-menu-item>
 
+        <el-menu-item index="/gpu-workbench">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>GPU 工作台</span>
+        </el-menu-item>
+
+        <el-menu-item index="/ai-traces">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>AI Trace 中心</span>
+        </el-menu-item>
+
         <el-menu-item index="/cases">
           <el-icon><FolderOpened /></el-icon>
           <span>病例管理</span>
@@ -64,9 +74,25 @@
           <strong>医学影像智能分割与辅助分析系统</strong>
           <span>CT / MRI / Segmentation / 3D Reconstruction / AI Report</span>
         </div>
-        <div class="user-info">
-          <span class="status-dot"></span>
-          医生工作台
+        <div class="topbar-actions">
+          <button
+            class="gpu-status"
+            :class="`gpu-status--${gpuStatusTone}`"
+            type="button"
+            title="查看 GPU 资源调度台"
+            @click="openGpuWorkbench"
+          >
+            <span class="gpu-status-dot"></span>
+            <span class="gpu-status-copy">
+              <strong>{{ gpuStatusLabel }}</strong>
+              <small>{{ gpuStatusDetail }}</small>
+            </span>
+            <span class="gpu-status-refresh">自动更新 {{ nextRefreshSeconds }} 秒</span>
+          </button>
+          <div class="user-info">
+            <span class="status-dot"></span>
+            医生工作台
+          </div>
         </div>
       </el-header>
 
@@ -78,9 +104,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
+import { useGpuRuntimeStatus } from '../composables/useGpuRuntimeStatus'
 import {
   DataAnalysis,
   DataBoard,
@@ -93,6 +120,37 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const {
+  status: gpuRuntimeStatus,
+  lastError: gpuStatusError,
+  nextRefreshSeconds,
+  startPolling: startGpuStatusPolling,
+  stopPolling: stopGpuStatusPolling
+} = useGpuRuntimeStatus()
+
+const gpuPrimary = computed(() => gpuRuntimeStatus.value.gpu?.primary || {})
+const gpuActivity = computed(() => gpuRuntimeStatus.value.activity || {})
+const gpuStatusTone = computed(() => {
+  if (gpuStatusError.value || gpuRuntimeStatus.value.gpu?.available === false) return 'danger'
+  return {
+    running: 'running',
+    waiting_for_gpu: 'warning',
+    queued: 'warning',
+    ready: 'ready',
+    idle: 'idle'
+  }[gpuActivity.value.state] || 'idle'
+})
+const gpuStatusLabel = computed(() => {
+  if (gpuStatusError.value) return 'GPU 状态暂时不可用'
+  if (!gpuRuntimeStatus.value.generated_at) return '正在读取 GPU 状态'
+  return gpuActivity.value.label || 'GPU 空闲'
+})
+const gpuStatusDetail = computed(() => {
+  if (gpuStatusError.value) return '点击查看资源调度台'
+  const used = formatMemory(gpuPrimary.value.memory_used_mb)
+  const total = formatMemory(gpuPrimary.value.memory_total_mb)
+  return used === '—' || total === '—' ? '正在读取显存遥测' : `${used} / ${total}`
+})
 
 const activeMenu = computed(() => {
   if (/^\/glioma\/cases\/[^/]+$/.test(route.path)) return '/cases'
@@ -122,6 +180,19 @@ function handleMenuSelect(index) {
 
   router.push(index)
 }
+
+function openGpuWorkbench() {
+  router.push('/gpu-workbench')
+}
+
+function formatMemory(value) {
+  const memory = Number(value)
+  if (!Number.isFinite(memory) || memory <= 0) return '—'
+  return memory >= 1024 ? `${(memory / 1024).toFixed(1)} GB` : `${memory} MB`
+}
+
+onMounted(startGpuStatusPolling)
+onBeforeUnmount(stopGpuStatusPolling)
 </script>
 
 <style scoped>
@@ -225,6 +296,91 @@ function handleMenuSelect(index) {
   font-size: 12px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gpu-status {
+  min-width: 276px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(93, 235, 219, 0.22);
+  border-radius: 9px;
+  background: rgba(8, 31, 45, 0.7);
+  color: var(--ppgl-text);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.gpu-status:hover {
+  border-color: rgba(93, 235, 219, 0.54);
+  background: rgba(17, 55, 70, 0.75);
+  transform: translateY(-1px);
+}
+
+.gpu-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ppgl-primary);
+  box-shadow: 0 0 0 4px rgba(32, 224, 196, 0.12);
+}
+
+.gpu-status-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.gpu-status-copy strong {
+  overflow: hidden;
+  color: var(--ppgl-text);
+  font-size: 12px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gpu-status-copy small,
+.gpu-status-refresh {
+  color: var(--ppgl-muted);
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.gpu-status-refresh {
+  margin-left: auto;
+  color: #86d9d0;
+}
+
+.gpu-status--running .gpu-status-dot {
+  background: var(--ppgl-accent);
+  box-shadow: 0 0 0 4px rgba(106, 169, 255, 0.14), 0 0 12px rgba(106, 169, 255, 0.72);
+}
+
+.gpu-status--warning .gpu-status-dot {
+  background: var(--ppgl-warning);
+  box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.14), 0 0 12px rgba(255, 209, 102, 0.52);
+}
+
+.gpu-status--danger .gpu-status-dot {
+  background: var(--ppgl-danger);
+  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.14);
+}
+
+.gpu-status--ready .gpu-status-dot {
+  background: var(--ppgl-success);
+  box-shadow: 0 0 0 4px rgba(77, 241, 161, 0.12);
+}
+
 .user-info {
   height: 34px;
   padding: 0 12px;
@@ -285,9 +441,31 @@ function handleMenuSelect(index) {
     display: none;
   }
 
+  .gpu-status {
+    min-width: 0;
+  }
+
+  .gpu-status-refresh {
+    display: none;
+  }
+
   .main-content {
     padding: 16px;
   }
 
+}
+
+@media (max-width: 620px) {
+  .gpu-status {
+    width: 42px;
+    min-width: 42px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .gpu-status-copy,
+  .user-info {
+    display: none;
+  }
 }
 </style>

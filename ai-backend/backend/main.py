@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
 import hmac
+import hashlib
 import jwt
 import os
 import shutil
@@ -14,11 +15,14 @@ import uuid
 import json
 import sys
 import traceback
+import time
 import urllib.error
 import urllib.request
 import zipfile
 from threading import Lock
 
+from core.ai_trace import AiTraceStore, normalize_trace_id
+from core.gpu_workbench import GpuWorkbench
 from core.runtime import configured_path, subprocess_runtime_env
 from ct.inference_wrapper import run_single_case
 from ct.run_totalseg import create_mesh_outputs
@@ -114,11 +118,22 @@ async def require_api_authentication(request: Request, call_next):
                 return JSONResponse(status_code=403, content={"detail": "You do not have access to this case"})
     return await call_next(request)
 
+
+@app.middleware("http")
+async def attach_trace_context(request: Request, call_next):
+    trace_id = normalize_trace_id(request.headers.get("X-PPGL-Trace-Id"))
+    request.state.trace_id = trace_id
+    response = await call_next(request)
+    response.headers["X-PPGL-Trace-Id"] = trace_id
+    return response
+
 # 代码目录从当前文件定位；运行数据默认放到项目外，避免和源码混放。
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
 
 DATA_ROOT = Path(os.environ.get("PPGL_DATA_ROOT", str(Path.home() / "ppgl-assist-data"))).expanduser().resolve()
+GPU_WORKBENCH = GpuWorkbench(DATA_ROOT)
+AI_TRACES = AiTraceStore(DATA_ROOT)
 
 # 病例保存目录：$PPGL_DATA_ROOT/cases
 CASES_DIR = Path(os.environ.get("PPGL_CASES_DIR", str(DATA_ROOT / "cases"))).expanduser().resolve()
@@ -176,6 +191,69 @@ def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def request_trace_id(request: Request) -> str:
+    return str(getattr(request.state, "trace_id", "") or normalize_trace_id(None))
+
+
+def trace_actor(request: Request) -> tuple[int | None, str]:
+    auth = getattr(request.state, "auth", {}) or {}
+    raw_id = auth.get("uid")
+    actor_id = raw_id if isinstance(raw_id, int) else None
+    return actor_id, str(auth.get("role", ""))
+
+
+def start_ai_trace(request: Request, operation: str, metadata: dict[str, Any]) -> str:
+    actor_id, actor_role = trace_actor(request)
+    return AI_TRACES.start(
+        request_trace_id(request),
+        operation,
+        actor_user_id=actor_id,
+        actor_role=actor_role,
+        metadata=metadata,
+    )
+
+
+def text_fingerprint(value: str) -> dict[str, Any]:
+    text = str(value or "")
+    return {
+        "length": len(text),
+        "sha256_prefix": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16],
+    }
+
+
+def error_trace_payload(exc: Exception) -> dict[str, str]:
+    return {
+        "type": type(exc).__name__,
+        "message": str(exc)[:240],
+    }
+
+
+def start_glioma_trace(request: Request, case_id: str) -> str:
+    return start_ai_trace(
+        request,
+        "glioma_segmentation",
+        {
+            "case_id": case_id,
+            "model": "nnU-Net 脑胶质瘤分割权重",
+            "device": os.environ.get("PPGL_GLIOMA_DEVICE", "cuda"),
+        },
+    )
+
+
+def record_glioma_trace_event(trace_id: str, stage: str, status: str, details: dict[str, Any]) -> None:
+    event_details = dict(details or {})
+    duration_ms = event_details.pop("duration_ms", None)
+    if stage == "task_finished" and status in {"completed", "failed", "cancelled"}:
+        if status == "completed":
+            AI_TRACES.finish(trace_id, status, duration_ms=duration_ms, result=event_details)
+        elif status == "failed":
+            AI_TRACES.finish(trace_id, status, duration_ms=duration_ms, error=event_details)
+        else:
+            AI_TRACES.finish(trace_id, status, duration_ms=duration_ms, result=event_details)
+        return
+    AI_TRACES.event(trace_id, stage, status, duration_ms=duration_ms, details=event_details)
+
+
 def read_json(path: Path) -> dict:
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {path.name}")
@@ -210,6 +288,14 @@ def ollama_chat_config() -> Optional[Dict[str, Any]]:
         "model": model,
         "keep_alive": keep_alive_value,
     }
+
+
+def configured_llm_model(scope: str) -> str:
+    if scope == "rag":
+        return os.environ.get("RAG_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "")).strip()
+    if scope == "report":
+        return os.environ.get("REPORT_OPENAI_MODEL", os.environ.get("CHAT_OPENAI_MODEL", "")).strip()
+    return os.environ.get("CHAT_OPENAI_MODEL", "").strip()
 
 
 def post_ollama_json(url: str, payload: Dict[str, Any], timeout: float) -> Optional[Dict[str, Any]]:
@@ -269,6 +355,23 @@ def preload_chat_model_after_segmentation(log_path: Optional[Path] = None) -> No
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as f:
             f.write(message + "\n")
+
+
+def prepare_glioma_gpu_task(log_path: Path) -> None:
+    case_id = log_path.parent.parent.name
+    GPU_WORKBENCH.begin("glioma", case_id)
+    unload_chat_model_for_segmentation(log_path)
+
+
+def finish_glioma_gpu_task(log_path: Path) -> None:
+    case_id = log_path.parent.parent.name
+    try:
+        status_path = log_path.parent.parent / "status.json"
+        status = read_json(status_path) if status_path.is_file() else {}
+        final_status = str(status.get("status", "failed")).lower()
+        GPU_WORKBENCH.finish("glioma", case_id, final_status)
+    finally:
+        preload_chat_model_after_segmentation(log_path)
 
 
 def stream_event(payload: dict) -> str:
@@ -591,15 +694,41 @@ def run_segmentation_task(
     force: bool,
     totalseg_fast: bool,
     totalseg_fastest: bool,
+    trace_id: str,
 ) -> None:
     case_dir = CASES_DIR / case_id
     input_path = case_dir / "input" / "ct.nii.gz"
     output_dir = case_dir / "output"
     model_lifecycle_log = output_dir / "model_lifecycle.log"
+    gpu_task_status = "failed"
+    trace_started_at = time.perf_counter()
 
     try:
         RUNNING_CASES.add(case_id)
         with SEGMENTATION_LOCK:
+            AI_TRACES.event(trace_id, "gpu_admission", "running")
+            gpu_task = GPU_WORKBENCH.begin(
+                "organ",
+                case_id,
+                on_wait=lambda free_mb, required_mb: update_status(
+                    case_dir,
+                    "queued",
+                    f"GPU 可用显存 {free_mb} MB，等待达到 {required_mb} MB 后启动全器官分割",
+                    5,
+                    gpu_waiting=True,
+                    gpu_free_mb=free_mb,
+                    gpu_required_free_mb=required_mb,
+                ),
+            )
+            AI_TRACES.event(
+                trace_id,
+                "gpu_admission",
+                "completed",
+                details={
+                    "admission": gpu_task.get("admission"),
+                    "queue_wait_seconds": gpu_task.get("queue_wait_seconds"),
+                },
+            )
             if force and output_dir.exists():
                 for child in output_dir.iterdir():
                     if child.name == "ppgl":
@@ -611,6 +740,8 @@ def run_segmentation_task(
             output_dir.mkdir(parents=True, exist_ok=True)
 
             update_status(case_dir, "running", "正在进行全器官分割", 10)
+            inference_started_at = time.perf_counter()
+            AI_TRACES.event(trace_id, "model_inference", "running", details={"model": "TotalSegmentator", "device": device})
             unload_chat_model_for_segmentation(model_lifecycle_log)
             try:
                 result = run_single_case(
@@ -624,12 +755,26 @@ def run_segmentation_task(
                 )
             finally:
                 preload_chat_model_after_segmentation(model_lifecycle_log)
+            AI_TRACES.event(
+                trace_id,
+                "model_inference",
+                "completed",
+                duration_ms=(time.perf_counter() - inference_started_at) * 1000,
+                details={"model": "TotalSegmentator"},
+            )
             update_status(
                 case_dir,
                 "completed",
                 "全器官分割完成",
                 100,
                 result=result,
+            )
+            gpu_task_status = "completed"
+            AI_TRACES.finish(
+                trace_id,
+                "completed",
+                duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+                result={"case_id": case_id, "task": "全器官分割", "model": "TotalSegmentator"},
             )
     except Exception as exc:
         error_path = case_dir / "error.log"
@@ -642,7 +787,14 @@ def run_segmentation_task(
             error=str(exc),
             error_log=str(error_path),
         )
+        AI_TRACES.finish(
+            trace_id,
+            "failed",
+            duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+            error=error_trace_payload(exc),
+        )
     finally:
+        GPU_WORKBENCH.finish("organ", case_id, gpu_task_status)
         RUNNING_CASES.discard(case_id)
 
 
@@ -650,16 +802,42 @@ def run_ppgl_segmentation_task(
     case_id: str,
     device: str,
     force: bool,
+    trace_id: str,
 ) -> None:
     case_dir = CASES_DIR / case_id
     input_path = case_dir / "input" / "ct.nii.gz"
     output_dir = case_dir / "output" / "ppgl"
     log_path = output_dir / "inference.log"
     model_lifecycle_log = output_dir / "model_lifecycle.log"
+    gpu_task_status = "failed"
+    trace_started_at = time.perf_counter()
 
     try:
         RUNNING_PPGL_CASES.add(case_id)
         with SEGMENTATION_LOCK:
+            AI_TRACES.event(trace_id, "gpu_admission", "running")
+            gpu_task = GPU_WORKBENCH.begin(
+                "ppgl",
+                case_id,
+                on_wait=lambda free_mb, required_mb: update_ppgl_status(
+                    case_dir,
+                    "queued",
+                    f"GPU 可用显存 {free_mb} MB，等待达到 {required_mb} MB 后启动 PPGL 肿瘤分割",
+                    5,
+                    gpu_waiting=True,
+                    gpu_free_mb=free_mb,
+                    gpu_required_free_mb=required_mb,
+                ),
+            )
+            AI_TRACES.event(
+                trace_id,
+                "gpu_admission",
+                "completed",
+                details={
+                    "admission": gpu_task.get("admission"),
+                    "queue_wait_seconds": gpu_task.get("queue_wait_seconds"),
+                },
+            )
             if force and output_dir.exists():
                 shutil.rmtree(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -672,6 +850,8 @@ def run_ppgl_segmentation_task(
                 raise FileNotFoundError(f"PPGL V5 model config not found: {PPGL_V5_MODEL_CONFIG}")
 
             update_ppgl_status(case_dir, "running", "正在进行肿瘤分割", 10)
+            inference_started_at = time.perf_counter()
+            AI_TRACES.event(trace_id, "model_inference", "running", details={"model": "PPGL 分割权重", "device": device})
             cmd = [
                 sys.executable,
                 str(inference_script),
@@ -710,6 +890,13 @@ def run_ppgl_segmentation_task(
             )
             if completed.returncode != 0:
                 raise RuntimeError(f"ProgressPatchV5 inference failed. See log: {log_path}")
+            AI_TRACES.event(
+                trace_id,
+                "model_inference",
+                "completed",
+                duration_ms=(time.perf_counter() - inference_started_at) * 1000,
+                details={"model": "PPGL 分割权重"},
+            )
             result_path = output_dir / "result.json"
             if not result_path.is_file():
                 raise RuntimeError("ProgressPatchV5 inference did not produce result.json")
@@ -728,6 +915,13 @@ def run_ppgl_segmentation_task(
                 100,
                 result=result,
             )
+            gpu_task_status = "completed"
+            AI_TRACES.finish(
+                trace_id,
+                "completed",
+                duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+                result={"case_id": case_id, "task": "PPGL 肿瘤分割", "model": "PPGL 分割权重"},
+            )
     except Exception as exc:
         error_path = case_dir / "ppgl_error.log"
         error_path.write_text(traceback.format_exc(), encoding="utf-8")
@@ -739,7 +933,14 @@ def run_ppgl_segmentation_task(
             error=str(exc),
             error_log=str(error_path),
         )
+        AI_TRACES.finish(
+            trace_id,
+            "failed",
+            duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+            error=error_trace_payload(exc),
+        )
     finally:
+        GPU_WORKBENCH.finish("ppgl", case_id, gpu_task_status)
         RUNNING_PPGL_CASES.discard(case_id)
 
 
@@ -748,18 +949,46 @@ def run_existing_totalseg_task(
     mode: str,
     device: str,
     totalseg_existing_dir: str,
+    trace_id: str,
 ) -> None:
     case_dir = CASES_DIR / case_id
     input_path = case_dir / "input" / "ct.nii.gz"
     output_dir = case_dir / "output"
     log_path = output_dir / "run_with_existing_totalseg.log"
     model_lifecycle_log = output_dir / "model_lifecycle.log"
+    gpu_task_status = "failed"
+    trace_started_at = time.perf_counter()
 
     try:
         RUNNING_CASES.add(case_id)
         with SEGMENTATION_LOCK:
+            AI_TRACES.event(trace_id, "gpu_admission", "running")
+            gpu_task = GPU_WORKBENCH.begin(
+                "organ",
+                case_id,
+                on_wait=lambda free_mb, required_mb: update_status(
+                    case_dir,
+                    "queued",
+                    f"GPU 可用显存 {free_mb} MB，等待达到 {required_mb} MB 后整理全器官分割结果",
+                    5,
+                    gpu_waiting=True,
+                    gpu_free_mb=free_mb,
+                    gpu_required_free_mb=required_mb,
+                ),
+            )
+            AI_TRACES.event(
+                trace_id,
+                "gpu_admission",
+                "completed",
+                details={
+                    "admission": gpu_task.get("admission"),
+                    "queue_wait_seconds": gpu_task.get("queue_wait_seconds"),
+                },
+            )
             output_dir.mkdir(parents=True, exist_ok=True)
             update_status(case_dir, "running", "AI 分割正在运行（复用已有 TotalSegmentator 结果）", 10)
+            inference_started_at = time.perf_counter()
+            AI_TRACES.event(trace_id, "result_normalization", "running", details={"source": "existing_totalseg"})
 
             cmd = [
                 sys.executable,
@@ -801,6 +1030,13 @@ def run_existing_totalseg_task(
             )
             if completed.returncode != 0:
                 raise RuntimeError(f"TotalSegmentator pipeline failed. See log: {log_path}")
+            AI_TRACES.event(
+                trace_id,
+                "result_normalization",
+                "completed",
+                duration_ms=(time.perf_counter() - inference_started_at) * 1000,
+                details={"source": "existing_totalseg"},
+            )
 
             result_path = output_dir / "result.json"
             result = read_json(result_path) if result_path.exists() else {}
@@ -810,6 +1046,13 @@ def run_existing_totalseg_task(
                 "TotalSegmentator 结果整理完成（已复用外部结果）",
                 100,
                 result=result,
+            )
+            gpu_task_status = "completed"
+            AI_TRACES.finish(
+                trace_id,
+                "completed",
+                duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+                result={"case_id": case_id, "task": "全器官结果整理", "source": "existing_totalseg"},
             )
     except Exception as exc:
         error_path = case_dir / "error.log"
@@ -822,7 +1065,14 @@ def run_existing_totalseg_task(
             error=str(exc),
             error_log=str(error_path),
         )
+        AI_TRACES.finish(
+            trace_id,
+            "failed",
+            duration_ms=(time.perf_counter() - trace_started_at) * 1000,
+            error=error_trace_payload(exc),
+        )
     finally:
+        GPU_WORKBENCH.finish("organ", case_id, gpu_task_status)
         RUNNING_CASES.discard(case_id)
 
 
@@ -831,6 +1081,88 @@ async def root():
     return {
         "message": "TotalSegmentator full-organ segmentation API is running"
     }
+
+
+@app.get("/api/gpu-workbench")
+async def gpu_workbench_status():
+    return GPU_WORKBENCH.snapshot()
+
+
+def trace_access_scope(request: Request) -> tuple[int | None, bool]:
+    actor_id, actor_role = trace_actor(request)
+    return actor_id, actor_role == "ADMIN"
+
+
+def documented_rag_evaluations() -> list[dict[str, Any]]:
+    evaluation_dir = PROJECT_ROOT / "docs" / "model-evaluation"
+    if not evaluation_dir.is_dir():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in sorted(evaluation_dir.glob("rag_evaluation*.json"), reverse=True):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        summary = payload.get("summary") if isinstance(payload, dict) else None
+        if not isinstance(summary, dict):
+            continue
+        rows.append(
+            {
+                "evaluation_id": path.stem,
+                "generated_at": payload.get("generated_at"),
+                "retrieval_mode": payload.get("retrieval_mode"),
+                "top_k": payload.get("top_k"),
+                "retrieve_k": payload.get("retrieve_k"),
+                "summary": {
+                    key: summary.get(key)
+                    for key in (
+                        "total",
+                        "success_rate",
+                        "retrieval_hit_rate",
+                        "valid_citation_rate",
+                        "expected_source_cited_rate",
+                        "average_wall_time_s",
+                        "p95_wall_time_s",
+                    )
+                },
+            }
+        )
+    return rows
+
+
+@app.get("/api/traces")
+async def list_ai_traces(
+    request: Request,
+    limit: int = 80,
+    operation: str = "",
+    status: str = "",
+):
+    actor_id, is_admin = trace_access_scope(request)
+    rows = AI_TRACES.list(
+        limit=limit,
+        operation=operation.strip() or None,
+        status=status.strip() or None,
+        actor_user_id=actor_id,
+        is_admin=is_admin,
+    )
+    return {
+        "traces": rows,
+        "summary": AI_TRACES.summary(actor_user_id=actor_id, is_admin=is_admin),
+    }
+
+
+@app.get("/api/traces/evaluations")
+async def list_trace_evaluations():
+    return {"evaluations": documented_rag_evaluations()}
+
+
+@app.get("/api/traces/{trace_id}")
+async def get_ai_trace(trace_id: str, request: Request):
+    actor_id, is_admin = trace_access_scope(request)
+    trace = AI_TRACES.get(trace_id, actor_user_id=actor_id, is_admin=is_admin)
+    if trace is None:
+        raise HTTPException(status_code=404, detail="AI trace not found")
+    return trace
 
 
 @app.post("/api/cases/upload")
@@ -961,12 +1293,26 @@ async def run_case_with_existing_totalseg(
         totalseg_existing_dir=str(totalseg_existing_dir),
         totalseg_mask_count=mask_count,
     )
+    GPU_WORKBENCH.submit("organ", case_id)
+    trace_id = start_ai_trace(
+        request,
+        "organ_result_normalization",
+        {
+            "case_id": case_id,
+            "source": "existing_totalseg",
+            "device": device,
+            "mode": mode,
+            "mask_count": mask_count,
+        },
+    )
+    AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "全器官结果整理"})
     background_tasks.add_task(
         run_existing_totalseg_task,
         case_id,
         mode,
         device,
         str(totalseg_existing_dir),
+        trace_id,
     )
     return read_json(case_dir / "status.json")
 
@@ -1072,6 +1418,7 @@ async def rename_case(case_id: str, payload: RenameCaseRequest):
 async def start_segmentation(
     case_id: str,
     background_tasks: BackgroundTasks,
+    request: Request,
     mode: str = "full_total",
     device: str = "cuda",
     force: bool = False,
@@ -1093,6 +1440,19 @@ async def start_segmentation(
         return read_json(case_dir / "status.json")
 
     update_status(case_dir, "queued", "全器官分割任务已提交", 5)
+    GPU_WORKBENCH.submit("organ", case_id)
+    trace_id = start_ai_trace(
+        request,
+        "organ_segmentation",
+        {
+            "case_id": case_id,
+            "model": "TotalSegmentator",
+            "device": device,
+            "mode": mode,
+            "force": force,
+        },
+    )
+    AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "全器官分割"})
     background_tasks.add_task(
         run_segmentation_task,
         case_id,
@@ -1101,6 +1461,7 @@ async def start_segmentation(
         force,
         totalseg_fast,
         totalseg_fastest,
+        trace_id,
     )
     return read_json(case_dir / "status.json")
 
@@ -1109,6 +1470,7 @@ async def start_segmentation(
 async def start_ppgl_segmentation(
     case_id: str,
     background_tasks: BackgroundTasks,
+    request: Request,
     device: str = "cuda:0",
     force: bool = False,
 ):
@@ -1124,7 +1486,19 @@ async def start_ppgl_segmentation(
         return ppgl_status(case_dir)
 
     update_ppgl_status(case_dir, "queued", "PPGL 肿瘤分割任务已提交", 5)
-    background_tasks.add_task(run_ppgl_segmentation_task, case_id, device, force)
+    GPU_WORKBENCH.submit("ppgl", case_id)
+    trace_id = start_ai_trace(
+        request,
+        "ppgl_segmentation",
+        {
+            "case_id": case_id,
+            "model": "PPGL 分割权重",
+            "device": device,
+            "force": force,
+        },
+    )
+    AI_TRACES.event(trace_id, "task_queued", "completed", details={"task": "PPGL 肿瘤分割"})
+    background_tasks.add_task(run_ppgl_segmentation_task, case_id, device, force, trace_id)
     return ppgl_status(case_dir)
 
 
@@ -1282,19 +1656,57 @@ async def get_case_mesh_manifest(case_id: str):
 
 
 @app.post("/api/llm/chat/stream")
-async def stream_generic_llm_chat(payload: GenericLlmStreamChatRequest):
+async def stream_generic_llm_chat(request: Request, payload: GenericLlmStreamChatRequest):
     prompt = build_generic_llm_prompt(payload)
+    trace_id = start_ai_trace(
+        request,
+        "llm_chat",
+        {
+            "model": configured_llm_model("chat"),
+            "max_tokens": payload.max_tokens,
+            "message_count": len(payload.messages or payload.history or []),
+            "question_fingerprint": text_fingerprint(payload.question),
+        },
+    )
 
     def generate():
         answer_parts: list[str] = []
+        started_at = time.perf_counter()
+        first_token_at: float | None = None
+        activity_id = GPU_WORKBENCH.start_runtime_activity(
+            "llm",
+            "AI 问答",
+            configured_llm_model("chat"),
+        )
         try:
             for delta in stream_openai_text(prompt, max_output_tokens=payload.max_tokens):
+                if first_token_at is None:
+                    first_token_at = time.perf_counter()
                 answer_parts.append(delta)
                 yield stream_event({"type": "delta", "text": delta})
 
             answer = "".join(answer_parts).strip()
             if not answer:
                 raise RuntimeError("OpenAI-compatible API returned an empty answer")
+
+            total_ms = (time.perf_counter() - started_at) * 1000
+            AI_TRACES.event(
+                trace_id,
+                "model_generation",
+                "completed",
+                duration_ms=total_ms,
+                details={
+                    "first_token_ms": round(((first_token_at or started_at) - started_at) * 1000, 3),
+                    "output_characters": len(answer),
+                    "provider": llm_provider(),
+                },
+            )
+            AI_TRACES.finish(
+                trace_id,
+                "completed",
+                duration_ms=total_ms,
+                result={"model": configured_llm_model("chat"), "output_characters": len(answer)},
+            )
 
             yield stream_event(
                 {
@@ -1307,9 +1719,23 @@ async def stream_generic_llm_chat(payload: GenericLlmStreamChatRequest):
                 }
             )
         except RuntimeError as exc:
+            AI_TRACES.finish(
+                trace_id,
+                "failed",
+                duration_ms=(time.perf_counter() - started_at) * 1000,
+                error=error_trace_payload(exc),
+            )
             yield stream_event({"type": "error", "detail": str(exc)})
         except Exception as exc:
+            AI_TRACES.finish(
+                trace_id,
+                "failed",
+                duration_ms=(time.perf_counter() - started_at) * 1000,
+                error=error_trace_payload(exc),
+            )
             yield stream_event({"type": "error", "detail": f"AI 问答失败：{exc}"})
+        finally:
+            GPU_WORKBENCH.finish_runtime_activity(activity_id)
 
     return StreamingResponse(
         generate(),
@@ -1347,11 +1773,29 @@ def search_rag_knowledge(payload: RagSearchRequest):
 
 
 @app.post("/api/rag/query")
-def query_rag_knowledge(payload: RagQueryRequest):
+def query_rag_knowledge(request: Request, payload: RagQueryRequest):
+    trace_id = start_ai_trace(
+        request,
+        "rag_query",
+        {
+            "model": configured_llm_model("rag"),
+            "question_fingerprint": text_fingerprint(payload.question),
+            "retrieval_mode": payload.retrieval_mode,
+            "top_k": payload.top_k,
+            "retrieve_k": payload.retrieve_k,
+        },
+    )
+    total_started_at = time.perf_counter()
+    activity_id = GPU_WORKBENCH.start_runtime_activity(
+        "rag",
+        "医学知识库问答",
+        configured_llm_model("rag"),
+    )
     try:
         from rag.prompt_builder import build_knowledge_rag_prompt, citation_payload, evidence_assessment
         from rag.vector_store import search_knowledge_with_metadata
 
+        retrieval_started_at = time.perf_counter()
         search_payload = search_knowledge_with_metadata(
             payload.question,
             payload.top_k,
@@ -1359,39 +1803,96 @@ def query_rag_knowledge(payload: RagQueryRequest):
             retrieval_mode=payload.retrieval_mode,
         )
         results = search_payload["results"]
+        AI_TRACES.event(
+            trace_id,
+            "retrieval_and_rerank",
+            "completed",
+            duration_ms=(time.perf_counter() - retrieval_started_at) * 1000,
+            details={
+                "result_count": len(results),
+                "document_ids": [str(item.get("document_id", "")) for item in results[:5]],
+                "pipeline": search_payload["metadata"].get("pipeline", {}),
+            },
+        )
         prompt = build_knowledge_rag_prompt(payload.question, results)
-        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens)
+        generation_started_at = time.perf_counter()
+        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens, scope="rag")
+        AI_TRACES.event(
+            trace_id,
+            "model_generation",
+            "completed",
+            duration_ms=(time.perf_counter() - generation_started_at) * 1000,
+            details={"model": metadata.get("model", configured_llm_model("rag"))},
+        )
     except FileNotFoundError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=400, detail=str(exc))
     except RuntimeError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=500, detail=f"RAG 问答失败：{exc}")
+    finally:
+        GPU_WORKBENCH.finish_runtime_activity(activity_id)
+    citations = citation_payload(results)
+    assessment = evidence_assessment(answer, results)
+    AI_TRACES.finish(
+        trace_id,
+        "completed",
+        duration_ms=(time.perf_counter() - total_started_at) * 1000,
+        result={
+            "model": metadata.get("model", configured_llm_model("rag")),
+            "citation_count": len(citations),
+            "evidence_level": assessment.get("level"),
+            "cited_count": assessment.get("cited_count"),
+        },
+    )
     return {
         "question": payload.question.strip(),
         "answer": answer,
-        "citations": citation_payload(results),
+        "citations": citations,
         "metadata": {
             **metadata,
             "retrieval": search_payload["metadata"]["pipeline"],
             "retrieval_latency_ms": search_payload["metadata"]["latency_ms"],
             "top_k": payload.top_k,
-            "evidence_assessment": evidence_assessment(answer, results),
+            "evidence_assessment": assessment,
         },
     }
 
 
 @app.post("/api/cases/{case_id}/rag/query")
-def query_case_rag_knowledge(case_id: str, payload: RagQueryRequest):
+def query_case_rag_knowledge(case_id: str, request: Request, payload: RagQueryRequest):
     case_dir = case_dir_for(case_id)
+    trace_id = start_ai_trace(
+        request,
+        "case_rag_query",
+        {
+            "case_id": case_id,
+            "model": configured_llm_model("rag"),
+            "question_fingerprint": text_fingerprint(payload.question),
+            "retrieval_mode": payload.retrieval_mode,
+            "top_k": payload.top_k,
+            "retrieve_k": payload.retrieve_k,
+        },
+    )
+    total_started_at = time.perf_counter()
+    activity_id = GPU_WORKBENCH.start_runtime_activity(
+        "rag",
+        "病例知识库问答",
+        configured_llm_model("rag"),
+    )
     try:
         from rag.case_context import load_case_context
         from rag.prompt_builder import build_case_rag_prompt, citation_payload, evidence_assessment
         from rag.vector_store import search_knowledge_with_metadata
 
         case_context = load_case_context(case_dir, payload.question)
+        retrieval_started_at = time.perf_counter()
         search_payload = search_knowledge_with_metadata(
             payload.question,
             payload.top_k,
@@ -1399,29 +1900,67 @@ def query_case_rag_knowledge(case_id: str, payload: RagQueryRequest):
             retrieval_mode=payload.retrieval_mode,
         )
         results = search_payload["results"]
+        AI_TRACES.event(
+            trace_id,
+            "retrieval_and_rerank",
+            "completed",
+            duration_ms=(time.perf_counter() - retrieval_started_at) * 1000,
+            details={
+                "result_count": len(results),
+                "document_ids": [str(item.get("document_id", "")) for item in results[:5]],
+                "pipeline": search_payload["metadata"].get("pipeline", {}),
+            },
+        )
         prompt = build_case_rag_prompt(payload.question, case_context, results)
-        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens)
+        generation_started_at = time.perf_counter()
+        answer, metadata = call_openai_text(prompt, max_output_tokens=payload.max_tokens, scope="rag")
+        AI_TRACES.event(
+            trace_id,
+            "model_generation",
+            "completed",
+            duration_ms=(time.perf_counter() - generation_started_at) * 1000,
+            details={"model": metadata.get("model", configured_llm_model("rag"))},
+        )
     except FileNotFoundError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=400, detail=str(exc))
     except RuntimeError as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:
+        AI_TRACES.finish(trace_id, "failed", duration_ms=(time.perf_counter() - total_started_at) * 1000, error=error_trace_payload(exc))
         raise HTTPException(status_code=500, detail=f"病例 RAG 问答失败：{exc}")
+    finally:
+        GPU_WORKBENCH.finish_runtime_activity(activity_id)
+    citations = citation_payload(results)
+    assessment = evidence_assessment(answer, results)
+    AI_TRACES.finish(
+        trace_id,
+        "completed",
+        duration_ms=(time.perf_counter() - total_started_at) * 1000,
+        result={
+            "model": metadata.get("model", configured_llm_model("rag")),
+            "citation_count": len(citations),
+            "evidence_level": assessment.get("level"),
+            "cited_count": assessment.get("cited_count"),
+        },
+    )
     return {
         "case_id": case_id,
         "question": payload.question.strip(),
         "answer": answer,
         "case_context": case_context,
-        "citations": citation_payload(results),
+        "citations": citations,
         "metadata": {
             **metadata,
             "retrieval": search_payload["metadata"]["pipeline"],
             "retrieval_latency_ms": search_payload["metadata"]["latency_ms"],
             "top_k": payload.top_k,
             "case_aware": True,
-            "evidence_assessment": evidence_assessment(answer, results),
+            "evidence_assessment": assessment,
         },
     }
 
@@ -1466,12 +2005,23 @@ from glioma.router import build_glioma_router
 from report.router import build_report_router
 
 
-app.include_router(build_report_router(case_dir_for))
+app.include_router(
+    build_report_router(
+        case_dir_for,
+        GPU_WORKBENCH.start_runtime_activity,
+        GPU_WORKBENCH.finish_runtime_activity,
+        start_ai_trace,
+        AI_TRACES.finish,
+    )
+)
 app.include_router(
     build_glioma_router(
         DATA_ROOT,
         SEGMENTATION_LOCK,
-        unload_chat_model_for_segmentation,
-        preload_chat_model_after_segmentation,
+        prepare_glioma_gpu_task,
+        finish_glioma_gpu_task,
+        GPU_WORKBENCH.submit,
+        start_glioma_trace,
+        record_glioma_trace_event,
     )
 )

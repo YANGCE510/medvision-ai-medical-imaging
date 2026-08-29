@@ -16,6 +16,44 @@ from .vector_store import DEFAULT_CHUNKS_PATH, dense_search, load_chunks
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:[-_./][a-z0-9]+)*|[\u3400-\u9fff]", re.IGNORECASE)
 RRF_K = 60
 
+# The literature is primarily English while users ask in Chinese. These are
+# domain aliases, not generated text: they improve recall without changing the
+# question that is ultimately shown to the user.
+QUERY_EXPANSION_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (
+        ("遗传", "检测"),
+        "genetic testing germline susceptibility genes targeted next-generation sequencing NGS gene panel SDHA SDHB SDHC SDHD VHL RET NF1 TMEM127 MAX",
+    ),
+    (
+        ("基因", "面板"),
+        "genetic testing germline susceptibility genes targeted next-generation sequencing NGS gene panel SDHA SDHB SDHC SDHD VHL RET NF1 TMEM127 MAX",
+    ),
+    (
+        ("临床", "表现", "诊断"),
+        "clinical findings symptoms diagnosis biochemical tests",
+    ),
+    (
+        ("手术", "长期", "结局"),
+        "long-term outcomes postoperative surgery follow-up recurrence survival",
+    ),
+    (
+        ("术后", "随访"),
+        "postoperative long-term follow-up recurrence survival outcomes",
+    ),
+)
+
+
+def expand_query(query: str) -> str:
+    """Append stable PPGL terminology aliases for cross-lingual retrieval."""
+    clean_query = query.strip()
+    normalized = clean_query.casefold()
+    additions = [
+        expansion
+        for required_terms, expansion in QUERY_EXPANSION_RULES
+        if all(term in normalized for term in required_terms)
+    ]
+    return " ".join([clean_query, *additions]) if additions else clean_query
+
 
 def lexical_tokens(text: str) -> list[str]:
     tokens = [token.casefold() for token in TOKEN_RE.findall(text or "")]
@@ -92,6 +130,32 @@ def reciprocal_rank_fusion(
     return fused
 
 
+def select_distinct_documents(results: list[dict], top_k: int) -> list[dict]:
+    """Return the highest-ranked chunk from each document before filling gaps.
+
+    Supplying five near-identical chunks from one paper crowds out otherwise
+    relevant evidence and makes source-level citation coverage weaker.
+    """
+    selected: list[dict] = []
+    selected_ids: set[str] = set()
+    for result in results:
+        document_id = str(result.get("document_id") or result.get("chunk_id") or "")
+        if document_id in selected_ids:
+            continue
+        selected.append(result)
+        selected_ids.add(document_id)
+        if len(selected) >= top_k:
+            return selected
+
+    for result in results:
+        if result in selected:
+            continue
+        selected.append(result)
+        if len(selected) >= top_k:
+            break
+    return selected
+
+
 def hybrid_search(
     query: str,
     *,
@@ -102,22 +166,24 @@ def hybrid_search(
     clean_query = query.strip()
     if not clean_query:
         raise ValueError("Query must not be empty")
+    retrieval_query = expand_query(clean_query)
 
     started = time.perf_counter()
     dense_started = time.perf_counter()
-    dense_results = dense_search(clean_query, retrieve_k)
+    dense_results = dense_search(retrieval_query, retrieve_k)
     dense_ms = (time.perf_counter() - dense_started) * 1000
 
     bm25_started = time.perf_counter()
-    lexical_results = bm25_search(clean_query, retrieve_k)
+    lexical_results = bm25_search(retrieval_query, retrieve_k)
     bm25_ms = (time.perf_counter() - bm25_started) * 1000
 
     fused = reciprocal_rank_fusion(dense_results, lexical_results)
     reranker_ms = 0.0
     if use_reranker:
-        rerank_limit = max(top_k, min(retrieve_k, int(os.environ.get("PPGL_RERANK_CANDIDATES", "12"))))
+        rerank_limit = max(top_k, min(retrieve_k, int(os.environ.get("PPGL_RERANK_CANDIDATES", "20"))))
         reranker_started = time.perf_counter()
-        results = rerank_results(clean_query, fused[:rerank_limit], top_k=top_k)
+        reranked = rerank_results(retrieval_query, fused[:rerank_limit], top_k=rerank_limit)
+        results = select_distinct_documents(reranked, top_k)
         reranker_ms = (time.perf_counter() - reranker_started) * 1000
         pipeline = "bge-m3 + bm25 + rrf + bge-reranker-v2-m3"
     else:
@@ -133,6 +199,8 @@ def hybrid_search(
             "bm25_candidates": len(lexical_results),
             "fused_candidates": len(fused),
             "reranked_candidates": rerank_limit if use_reranker else 0,
+            "unique_document_results": len({str(item.get("document_id") or item.get("chunk_id") or "") for item in results}),
+            "query_expanded": retrieval_query != clean_query,
             "latency_ms": {
                 "dense": round(dense_ms, 2),
                 "bm25": round(bm25_ms, 2),

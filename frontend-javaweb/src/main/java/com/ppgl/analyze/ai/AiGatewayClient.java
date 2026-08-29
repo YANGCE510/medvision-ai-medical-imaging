@@ -29,6 +29,7 @@ public class AiGatewayClient {
             "content-disposition",
             "cache-control",
             "x-accel-buffering",
+            "x-ppgl-trace-id",
             "content-length"
     );
     private static final Set<String> BRAIN_MODALITIES = Set.of("flair", "t1", "t1ce", "t2");
@@ -71,6 +72,7 @@ public class AiGatewayClient {
                 .method(servletRequest.getMethod(), publisher);
         copyRequestHeader(servletRequest, builder, "Content-Type");
         copyRequestHeader(servletRequest, builder, "Accept");
+        copyRequestHeader(servletRequest, builder, "X-PPGL-Trace-Id");
         return send(builder.build());
     }
 
