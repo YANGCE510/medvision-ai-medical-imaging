@@ -45,6 +45,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 WORKDIR /app/ai-backend
 COPY ai-backend/ /app/ai-backend/
+COPY docs/model-evaluation/rag_evaluation*.json /app/docs/model-evaluation/
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -2,6 +2,14 @@ import request from './request'
 
 const AI_API = '/ai'
 
+export function getKnowledgeCatalog() {
+  return request.get(`${AI_API}/rag/catalog`)
+}
+
+export function getKnowledgeEvaluations() {
+  return request.get(`${AI_API}/rag/evaluations`)
+}
+
 export function searchKnowledge(query, topK = 5) {
   return request.post(`${AI_API}/rag/search`, {
     query,

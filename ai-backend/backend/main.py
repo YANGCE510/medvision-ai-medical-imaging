@@ -1146,12 +1146,28 @@ def trace_access_scope(request: Request) -> tuple[int | None, bool]:
     return actor_id, actor_role == "ADMIN"
 
 
-def documented_rag_evaluations() -> list[dict[str, Any]]:
-    evaluation_dir = PROJECT_ROOT / "docs" / "model-evaluation"
-    if not evaluation_dir.is_dir():
-        return []
+def rag_evaluation_paths() -> list[Path]:
+    """Locate recorded, de-identified RAG evaluations in source and Docker builds."""
+    directories = [
+        PROJECT_ROOT / "docs" / "model-evaluation",
+        BASE_DIR / "knowledge_base" / "evaluation",
+    ]
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for directory in directories:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("rag_evaluation*.json"):
+            resolved = path.resolve()
+            if resolved not in seen:
+                paths.append(resolved)
+                seen.add(resolved)
+    return paths
+
+
+def documented_rag_evaluations(include_cases: bool = False) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for path in sorted(evaluation_dir.glob("rag_evaluation*.json"), reverse=True):
+    for path in rag_evaluation_paths():
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -1159,28 +1175,121 @@ def documented_rag_evaluations() -> list[dict[str, Any]]:
         summary = payload.get("summary") if isinstance(payload, dict) else None
         if not isinstance(summary, dict):
             continue
-        rows.append(
-            {
-                "evaluation_id": path.stem,
-                "generated_at": payload.get("generated_at"),
-                "retrieval_mode": payload.get("retrieval_mode"),
-                "top_k": payload.get("top_k"),
-                "retrieve_k": payload.get("retrieve_k"),
-                "summary": {
-                    key: summary.get(key)
-                    for key in (
-                        "total",
-                        "success_rate",
-                        "retrieval_hit_rate",
-                        "valid_citation_rate",
-                        "expected_source_cited_rate",
-                        "average_wall_time_s",
-                        "p95_wall_time_s",
+        row = {
+            "evaluation_id": path.stem,
+            "generated_at": payload.get("generated_at"),
+            "retrieval_mode": payload.get("retrieval_mode"),
+            "top_k": payload.get("top_k"),
+            "retrieve_k": payload.get("retrieve_k"),
+            "summary": {
+                key: summary.get(key)
+                for key in (
+                    "total",
+                    "success_rate",
+                    "retrieval_hit_rate",
+                    "valid_citation_rate",
+                    "expected_source_cited_rate",
+                    "average_wall_time_s",
+                    "p95_wall_time_s",
+                )
+            },
+        }
+        if include_cases:
+            cases = payload.get("cases", [])
+            row["cases"] = [
+                {
+                    "id": item.get("id"),
+                    "question": item.get("question"),
+                    "http_status": item.get("http_status"),
+                    "retrieval_hit": item.get("retrieval_hit"),
+                    "expected_source_cited": item.get("expected_source_cited"),
+                    "valid_citation": item.get("valid_citation"),
+                    "wall_time_s": item.get("wall_time_s"),
+                    "evidence_level": (item.get("evidence_assessment") or {}).get("level"),
+                }
+                for item in cases
+                if isinstance(item, dict)
+            ]
+        rows.append(row)
+    return sorted(rows, key=lambda item: str(item.get("generated_at", "")), reverse=True)
+
+
+def rag_knowledge_catalog() -> dict[str, Any]:
+    """Return RAG asset metadata without exposing runtime paths or source contents."""
+    from rag.vector_store import DEFAULT_CHUNKS_PATH, collection_name, qdrant_client, qdrant_path
+
+    documents: dict[str, dict[str, Any]] = {}
+    chunk_count = 0
+    if DEFAULT_CHUNKS_PATH.is_file():
+        try:
+            with DEFAULT_CHUNKS_PATH.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(chunk, dict):
+                        continue
+                    chunk_count += 1
+                    document_id = str(chunk.get("document_id") or chunk.get("source_file") or "unknown")
+                    document = documents.setdefault(
+                        document_id,
+                        {
+                            "document_id": document_id,
+                            "title": chunk.get("title") or document_id,
+                            "year": chunk.get("year"),
+                            "doi": chunk.get("doi"),
+                            "pmcid": chunk.get("pmcid"),
+                            "source_url": chunk.get("source_url"),
+                            "chunks": 0,
+                        },
                     )
-                },
-            }
-        )
-    return rows
+                    document["chunks"] += 1
+        except OSError:
+            chunk_count = 0
+            documents = {}
+
+    index = {
+        "ready": False,
+        "collection": collection_name(),
+        "points": 0,
+        "vector_size": None,
+        "message": "尚未构建本地向量索引",
+    }
+    try:
+        client = qdrant_client(str(qdrant_path()))
+        if client.collection_exists(index["collection"]):
+            collection = client.get_collection(index["collection"])
+            vectors = collection.config.params.vectors
+            vector_size = getattr(vectors, "size", None)
+            index.update(
+                {
+                    "ready": True,
+                    "points": int(client.count(index["collection"], exact=True).count),
+                    "vector_size": int(vector_size) if vector_size is not None else None,
+                    "message": "本地向量索引已就绪",
+                }
+            )
+    except Exception:
+        index["message"] = "向量索引当前不可读，请检查知识库初始化状态"
+
+    provider = os.environ.get("PPGL_EMBEDDING_PROVIDER", "sentence_transformers").strip() or "sentence_transformers"
+    embedding_model = (
+        os.environ.get("PPGL_EMBEDDING_OLLAMA_MODEL", "bge-m3").strip()
+        if provider == "ollama"
+        else os.environ.get("PPGL_EMBEDDING_MODEL", "BAAI/bge-m3").strip()
+    )
+    evaluations = documented_rag_evaluations()
+    return {
+        "documents": sorted(documents.values(), key=lambda item: str(item["title"]).casefold()),
+        "document_count": len(documents),
+        "chunk_count": chunk_count,
+        "index": index,
+        "embedding": {"provider": provider, "model": embedding_model},
+        "latest_evaluation": evaluations[0] if evaluations else None,
+    }
 
 
 @app.get("/api/traces")
@@ -1207,6 +1316,16 @@ async def list_ai_traces(
 @app.get("/api/traces/evaluations")
 async def list_trace_evaluations():
     return {"evaluations": documented_rag_evaluations()}
+
+
+@app.get("/api/rag/catalog")
+def get_rag_knowledge_catalog():
+    return rag_knowledge_catalog()
+
+
+@app.get("/api/rag/evaluations")
+def get_rag_evaluations():
+    return {"evaluations": documented_rag_evaluations(include_cases=True)}
 
 
 @app.get("/api/traces/{trace_id}")

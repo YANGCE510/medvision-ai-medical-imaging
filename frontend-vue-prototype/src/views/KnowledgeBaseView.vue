@@ -3,13 +3,109 @@
     <div class="page-header">
       <div>
         <h2>PPGL 医学知识库</h2>
-        <p>BGE-M3 语义检索 · Qdrant 本地索引 · Qwen3-32B 带引用问答</p>
+        <p>本地向量检索 · 可追溯文献证据 · 带引用医学知识问答</p>
       </div>
       <div class="header-tags">
         <el-tag v-if="caseId" type="warning" effect="dark">当前病例：{{ caseId }}</el-tag>
-        <el-tag type="success" effect="dark">Hybrid RAG 已启用</el-tag>
+        <el-tag :type="catalog.index?.ready ? 'success' : 'warning'" effect="dark">
+          {{ catalog.index?.ready ? `索引就绪 · ${catalog.index.points || 0} 条向量` : '索引待初始化' }}
+        </el-tag>
       </div>
     </div>
+
+    <el-card class="asset-card" shadow="never">
+      <template #header>
+        <div class="card-title">
+          <div>
+            <strong>知识库资产与评测</strong>
+            <span>展示当前运行时索引，以及已记录的 20 题脱敏评测结果</span>
+          </div>
+          <el-button :loading="assetsLoading" @click="loadKnowledgeAssets">刷新状态</el-button>
+        </div>
+      </template>
+
+      <el-alert
+        v-if="catalogError"
+        :title="catalogError"
+        type="warning"
+        show-icon
+        :closable="false"
+      />
+
+      <el-row :gutter="12" class="asset-metric-grid">
+        <el-col :xs="12" :sm="6">
+          <div class="asset-metric"><span>已纳入文献</span><strong>{{ catalog.document_count || 0 }}</strong><small>来自已构建切块</small></div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="asset-metric"><span>知识切块</span><strong>{{ catalog.chunk_count || 0 }}</strong><small>用于检索的证据单元</small></div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="asset-metric"><span>索引向量</span><strong>{{ catalog.index?.points || 0 }}</strong><small>{{ catalog.index?.vector_size ? `${catalog.index.vector_size} 维` : '等待初始化' }}</small></div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="asset-metric"><span>最新评测命中</span><strong>{{ formatPercent(catalog.latest_evaluation?.summary?.retrieval_hit_rate) }}</strong><small>{{ catalog.latest_evaluation?.summary?.total || 0 }} 题评测集</small></div>
+        </el-col>
+      </el-row>
+
+      <el-descriptions :column="3" border class="asset-descriptions">
+        <el-descriptions-item label="向量提供方">{{ catalog.embedding?.provider || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="向量模型">{{ catalog.embedding?.model || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="索引状态">{{ catalog.index?.message || '—' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-collapse v-model="activeManagementPanels" class="management-collapse">
+        <el-collapse-item name="documents">
+          <template #title>
+            <strong>文献来源与切块清单（{{ catalog.document_count || 0 }} 篇）</strong>
+          </template>
+          <el-table :data="catalog.documents || []" max-height="280" empty-text="尚未发现知识库切块，请先完成知识库初始化。">
+            <el-table-column prop="title" label="文献" min-width="340" show-overflow-tooltip />
+            <el-table-column prop="document_id" label="来源编号" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="year" label="年份" width="90" />
+            <el-table-column prop="chunks" label="切块数" width="94" />
+            <el-table-column label="原始来源" width="104">
+              <template #default="scope">
+                <a v-if="scope.row.source_url" :href="scope.row.source_url" target="_blank" rel="noreferrer">查看</a>
+                <span v-else>—</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-collapse-item>
+
+        <el-collapse-item name="evaluations">
+          <template #title>
+            <strong>20 题检索与引用评测（{{ evaluations.length }} 个版本）</strong>
+          </template>
+          <div class="evaluation-toolbar">
+            <el-select v-model="selectedEvaluationId" class="evaluation-select" placeholder="选择评测版本">
+              <el-option
+                v-for="evaluation in evaluations"
+                :key="evaluation.evaluation_id"
+                :label="`${evaluation.evaluation_id} · ${formatTime(evaluation.generated_at)}`"
+                :value="evaluation.evaluation_id"
+              />
+            </el-select>
+            <span v-if="selectedEvaluation" class="muted">
+              {{ selectedEvaluation.retrieval_mode }} · top {{ selectedEvaluation.top_k }} / {{ selectedEvaluation.retrieve_k }}
+            </span>
+          </div>
+          <el-row v-if="selectedEvaluation" :gutter="12" class="evaluation-metric-grid">
+            <el-col :xs="12" :sm="6"><div class="evaluation-metric"><span>检索命中</span><strong>{{ formatPercent(selectedEvaluation.summary?.retrieval_hit_rate) }}</strong></div></el-col>
+            <el-col :xs="12" :sm="6"><div class="evaluation-metric"><span>目标文献引用</span><strong>{{ formatPercent(selectedEvaluation.summary?.expected_source_cited_rate) }}</strong></div></el-col>
+            <el-col :xs="12" :sm="6"><div class="evaluation-metric"><span>有效引用</span><strong>{{ formatPercent(selectedEvaluation.summary?.valid_citation_rate) }}</strong></div></el-col>
+            <el-col :xs="12" :sm="6"><div class="evaluation-metric"><span>P95 耗时</span><strong>{{ formatSeconds(selectedEvaluation.summary?.p95_wall_time_s) }}</strong></div></el-col>
+          </el-row>
+          <el-table :data="selectedEvaluation?.cases || []" max-height="360" empty-text="未发现评测明细。">
+            <el-table-column prop="id" label="题号" width="90" />
+            <el-table-column prop="question" label="脱敏评测问题" min-width="340" show-overflow-tooltip />
+            <el-table-column label="检索命中" width="104"><template #default="scope"><el-tag size="small" :type="resultTagType(scope.row.retrieval_hit)">{{ resultText(scope.row.retrieval_hit) }}</el-tag></template></el-table-column>
+            <el-table-column label="目标引用" width="104"><template #default="scope"><el-tag size="small" :type="resultTagType(scope.row.expected_source_cited)">{{ resultText(scope.row.expected_source_cited) }}</el-tag></template></el-table-column>
+            <el-table-column label="耗时" width="96"><template #default="scope">{{ formatSeconds(scope.row.wall_time_s) }}</template></el-table-column>
+            <el-table-column label="操作" width="88" fixed="right"><template #default="scope"><el-button link type="primary" @click="useEvaluationQuestion(scope.row.question)">用于问答</el-button></template></el-table-column>
+          </el-table>
+        </el-collapse-item>
+      </el-collapse>
+    </el-card>
 
     <div class="knowledge-layout">
       <el-card class="query-card" shadow="never">
@@ -61,7 +157,7 @@
         <div v-if="answer" class="answer-panel">
           <div class="answer-heading">
             <strong>AI 回答</strong>
-            <span>{{ metadata.retrieval || 'Hybrid RAG' }} · {{ totalLatencyText }}</span>
+            <span>{{ metadata.retrieval || '本地语义检索' }} · {{ totalLatencyText }}</span>
           </div>
           <div v-if="caseContext" class="case-facts">
             <el-tag size="small">器官 {{ caseContext.segmentation?.organ_count ?? '-' }}</el-tag>
@@ -164,12 +260,12 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRoute } from 'vue-router'
 
-import { queryCaseKnowledge, queryKnowledge } from '../api/ragApi'
+import { getKnowledgeCatalog, getKnowledgeEvaluations, queryCaseKnowledge, queryKnowledge } from '../api/ragApi'
 
 const route = useRoute()
 
@@ -192,8 +288,15 @@ const answer = ref('')
 const citations = ref([])
 const metadata = ref({})
 const caseContext = ref(null)
+const assetsLoading = ref(false)
+const catalogError = ref('')
+const catalog = ref({ documents: [], document_count: 0, chunk_count: 0, index: {}, embedding: {}, latest_evaluation: null })
+const evaluations = ref([])
+const selectedEvaluationId = ref('')
+const activeManagementPanels = ref(['documents', 'evaluations'])
 const caseId = computed(() => String(route.query.caseId || '').trim())
 const evidenceAssessment = computed(() => metadata.value?.evidence_assessment || null)
+const selectedEvaluation = computed(() => evaluations.value.find(item => item.evaluation_id === selectedEvaluationId.value) || null)
 const totalLatencyText = computed(() => {
   const value = Number(metadata.value?.retrieval_latency_ms?.total)
   return Number.isFinite(value) ? `检索 ${(value / 1000).toFixed(1)}s` : (metadata.value.model || 'Qwen3-32B')
@@ -226,6 +329,55 @@ function scoreText(score) {
 function compactScore(score) {
   const value = Number(score)
   return Number.isFinite(value) ? value.toFixed(3) : '-'
+}
+
+function formatPercent(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${Math.round(number * 100)}%` : '—'
+}
+
+function formatSeconds(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${number.toFixed(2)} 秒` : '—'
+}
+
+function formatTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function resultText(value) {
+  return value ? '通过' : '未通过'
+}
+
+function resultTagType(value) {
+  return value ? 'success' : 'warning'
+}
+
+function useEvaluationQuestion(value) {
+  question.value = String(value || '')
+  ElMessage.success('已填入评测问题，可直接发起知识库问答')
+}
+
+async function loadKnowledgeAssets() {
+  assetsLoading.value = true
+  catalogError.value = ''
+  try {
+    const [catalogPayload, evaluationPayload] = await Promise.all([
+      getKnowledgeCatalog(),
+      getKnowledgeEvaluations()
+    ])
+    catalog.value = catalogPayload || catalog.value
+    evaluations.value = evaluationPayload.evaluations || []
+    if (!evaluations.value.some(item => item.evaluation_id === selectedEvaluationId.value)) {
+      selectedEvaluationId.value = evaluations.value[0]?.evaluation_id || ''
+    }
+  } catch (error) {
+    catalogError.value = error?.response?.data?.detail || '知识库资产状态读取失败'
+  } finally {
+    assetsLoading.value = false
+  }
 }
 
 async function askKnowledgeBase() {
@@ -261,11 +413,74 @@ function handleKeydown(event) {
     if (!loading.value) askKnowledgeBase()
   }
 }
+
+onMounted(loadKnowledgeAssets)
 </script>
 
 <style scoped>
 .knowledge-page {
   min-height: 100%;
+}
+
+.asset-card {
+  margin-bottom: 20px;
+  border-color: rgba(93, 235, 219, 0.22);
+  background: rgba(8, 23, 36, 0.78);
+}
+
+.asset-metric-grid,
+.evaluation-metric-grid {
+  margin-bottom: 16px;
+}
+
+.asset-metric,
+.evaluation-metric {
+  display: grid;
+  min-height: 94px;
+  padding: 14px;
+  border: 1px solid rgba(93, 235, 219, 0.15);
+  border-radius: 12px;
+  background: rgba(5, 16, 26, 0.56);
+}
+
+.asset-metric span,
+.asset-metric small,
+.evaluation-metric span,
+.muted {
+  color: var(--ppgl-muted);
+  font-size: 12px;
+}
+
+.asset-metric strong,
+.evaluation-metric strong {
+  color: var(--ppgl-text);
+  font-size: 24px;
+}
+
+.asset-descriptions {
+  margin-bottom: 16px;
+}
+
+.management-collapse :deep(.el-collapse-item__header),
+.management-collapse :deep(.el-collapse-item__wrap) {
+  background: transparent;
+  border-color: rgba(93, 235, 219, 0.14);
+}
+
+.management-collapse :deep(.el-collapse-item__content) {
+  padding: 14px 0;
+}
+
+.evaluation-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.evaluation-select {
+  width: min(100%, 430px);
 }
 
 .knowledge-layout {
