@@ -237,18 +237,22 @@ PPGL_GLIOMA_DEVICE=cuda
 
 脑胶质瘤权重暂不随代码仓库发布，后续将上传至 Hugging Face 并在本文档补充下载地址。当前权重用于科研原型验证，不作为独立临床结论或性能承诺。
 
-AI 报告和问答需要可用的大模型。默认启动脚本使用 Ollama，并查找 `ppgl-qwen3-32b-q4:latest`。如果本机没有该模型，可使用已经安装的其他 Ollama 模型，例如：
+AI 报告和问答需要可用的本地模型。推荐使用 Ollama：`qwen3:8b` 用于医学知识问答，`qwen3:32b` 用于报告问答和解释性任务，`bge-m3` 用于知识库检索向量。
 
 ```bash
 ollama pull qwen3:8b
+ollama pull qwen3:32b
+ollama pull bge-m3
 ```
 
 随后在 `.env` 中加入或修改：
 
 ```dotenv
-OLLAMA_MODEL=qwen3:8b
-CHAT_OPENAI_MODEL=qwen3:8b
-REPORT_OPENAI_MODEL=qwen3:8b
+RAG_OPENAI_MODEL=qwen3:8b
+CHAT_OPENAI_MODEL=qwen3:32b
+REPORT_OPENAI_MODEL=qwen3:32b
+PPGL_EMBEDDING_PROVIDER=ollama
+PPGL_EMBEDDING_OLLAMA_MODEL=bge-m3
 ```
 
 ### 6. 启动全部服务
@@ -301,10 +305,10 @@ Docker Compose 会启动 MySQL、AI 推理服务、Java 业务后端、Vue Web �
 
 ```text
 /opt/medvision-data/       # 病例、日志、RAG 索引、任务队列和运行结果
+/opt/medvision-data/models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres/  # 可选
 /opt/medvision-models/
-├── ppgl/model_best.pth
-├── totalsegmentator/
-└── brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres/  # 可选
+├── ppgl/weights/model_best.pth
+└── totalsegmentator/nnunet/results/
 ```
 
 真实病例、数据库、模型权重和日志均不会写入代码仓库。
@@ -325,6 +329,10 @@ MYSQL_PASSWORD=替换为数据库强密码
 MYSQL_ROOT_PASSWORD=替换为 MySQL root 强密码
 PPGL_AUTH_JWT_SECRET=替换为至少 32 位随机字符串
 PPGL_INTERNAL_API_KEY=替换为内部服务随机密钥
+RAG_OPENAI_MODEL=qwen3:8b
+CHAT_OPENAI_MODEL=qwen3:32b
+REPORT_OPENAI_MODEL=qwen3:32b
+PPGL_EMBEDDING_OLLAMA_MODEL=bge-m3
 ```
 
 可分别执行两次 `openssl rand -hex 32` 生成登录密钥和内部服务密钥。需要启用脑胶质瘤分割时，将 `PPGL_GLIOMA_ENABLED` 设为 `true`。
@@ -336,18 +344,22 @@ docker compose up -d --build
 docker compose ps
 ```
 
-首次使用需要为 Ollama 下载配置的大模型，例如：
+首次使用需要下载对话模型和知识库检索模型：
 
 ```bash
-set -a
-source .env
-set +a
-
-docker compose exec ollama ollama pull "$CHAT_OPENAI_MODEL"
-docker compose exec ollama ollama pull "$RAG_OPENAI_MODEL"
+docker compose exec ollama ollama pull qwen3:8b
+docker compose exec ollama ollama pull qwen3:32b
+docker compose exec ollama ollama pull bge-m3
 ```
 
-全部服务显示 `healthy` 后，访问 `http://127.0.0.1:5173/`。首次访问会显示医生账号初始化表单。
+确认向量模型可由 AI 服务调用：
+
+```bash
+docker compose exec ai python -c \
+'from rag.embedding_service import encode_texts; print(encode_texts(["RAG 向量模型测试"], batch_size=1).shape)'
+```
+
+输出 `(1, 1024)` 表示向量模型可用。全部服务显示 `healthy` 后，访问 `http://127.0.0.1:5173/`。首次访问会显示医生账号初始化表单。
 
 查看服务日志或停止服务：
 
@@ -395,23 +407,25 @@ CT 分割完成后可进入报告页面生成结构化 AI 辅助报告。报告�
 
 RAG 知识库不是影像分割的必需条件。需要使用医学知识检索和问答时，再执行以下初始化操作。
 
+Docker Compose 部署使用 Ollama 的本地 `bge-m3` 向量模型。完成上方的 `ollama pull bge-m3` 后，在项目根目录执行：
+
 ```bash
-set -a
-source .env
-set +a
+docker compose exec ai mkdir -p \
+  /var/lib/ppgl-assist/rag-documents \
+  /var/lib/ppgl-assist/rag-parsed \
+  /var/lib/ppgl-assist/rag-index
 
-mkdir -p "$PPGL_DATA_ROOT"/{rag-documents,rag-parsed,rag-index}
-cp --update=none ai-backend/knowledge_base/documents/* "$PPGL_DATA_ROOT/rag-documents/"
+docker compose exec ai sh -c \
+'cp -n /app/ai-backend/knowledge_base/documents/* /var/lib/ppgl-assist/rag-documents/'
 
-cd ai-backend
-python -m backend.rag.build_chunks \
-  --documents "$PPGL_DATA_ROOT/rag-documents" \
-  --output "$PPGL_DATA_ROOT/rag-parsed/chunks.jsonl"
+docker compose exec ai python -m rag.build_chunks \
+  --documents /var/lib/ppgl-assist/rag-documents \
+  --output /var/lib/ppgl-assist/rag-parsed/chunks.jsonl
 
-python -c 'from backend.rag.vector_store import build_vector_index; print(build_vector_index(device="cuda", batch_size=16))'
+docker compose exec ai python -m rag.build_index --batch-size 8
 ```
 
-首次构建会下载默认的 `BAAI/bge-m3` 向量模型。无 GPU 时可将 `device="cuda"` 改为 `device="cpu"`，但构建速度会更慢。
+构建完成后会在仓库外的数据目录创建 Qdrant 本地索引。索引已经存在时无需重复执行；补充或替换知识文档后再重新构建即可。
 
 ## 模型与数据
 

@@ -1,6 +1,10 @@
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
+ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_DEFAULT_TIMEOUT=120
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -8,22 +12,15 @@ RUN apt-get update \
         curl \
         ffmpeg \
         git \
+        gltfpack \
         libgl1 \
         libglib2.0-0 \
         libsm6 \
         libxext6 \
-        python3-pip \
-        python3.10 \
-        python3.10-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3.10 -m pip install --no-cache-dir --upgrade pip \
-    && python3.10 -m pip install --no-cache-dir \
-        torch==2.5.1 \
-        torchvision==0.20.1 \
-        torchaudio==2.5.1 \
-        --index-url https://download.pytorch.org/whl/cu121 \
-    && python3.10 -m pip install --no-cache-dir \
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir \
         TotalSegmentator==2.11.0 \
         fastapi==0.141.1 \
         matplotlib==3.10.6 \
@@ -53,14 +50,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONUTF8=1 \
     PPGL_DATA_ROOT=/var/lib/ppgl-assist \
-    TOTALSEG_WEIGHTS_PATH=/models/totalsegmentator \
-    PPGL_V5_CHECKPOINT=/models/ppgl/model_best.pth \
-    PPGL_GLIOMA_MODEL_DIR=/models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
+    TOTALSEG_WEIGHTS_PATH=/models/totalsegmentator/nnunet/results \
+    PPGL_V5_CHECKPOINT=/models/ppgl/weights/model_best.pth \
+    PPGL_GLIOMA_MODEL_DIR=/var/lib/ppgl-assist/models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
 
 WORKDIR /app/ai-backend/backend
 EXPOSE 8000
 
 HEALTHCHECK --interval=20s --timeout=5s --start-period=45s --retries=5 \
-    CMD python3.10 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)" || exit 1
 
-CMD ["python3.10", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

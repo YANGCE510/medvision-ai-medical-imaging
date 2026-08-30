@@ -537,7 +537,7 @@ def meshopt_compress_glb(source_path: Path, output_path: Path, simplify_ratio: f
         "-vn", "12",
     ]
     if simplify_ratio < 0.999:
-        command.extend(["-si", str(simplify_ratio), "-se", "0.01"])
+        command.extend(["-si", str(simplify_ratio)])
     completed = subprocess.run(command, text=True, capture_output=True)
     if completed.returncode != 0:
         raise RuntimeError(f"gltfpack failed for {source_path.name}: {completed.stderr.strip()}")

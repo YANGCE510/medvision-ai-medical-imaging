@@ -69,10 +69,17 @@ services:
       REPORT_OPENAI_MODEL: ${REPORT_OPENAI_MODEL:-ppgl-qwen3-32b-q4:latest}
       REPORT_OPENAI_API_KEY: ${REPORT_OPENAI_API_KEY:-ollama}
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
-      TOTALSEG_WEIGHTS_PATH: /models/totalsegmentator
-      PPGL_V5_CHECKPOINT: /models/ppgl/model_best.pth
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /var/lib/ppgl-assist/model-cache/huggingface
+      SENTENCE_TRANSFORMERS_HOME: /var/lib/ppgl-assist/model-cache/sentence-transformers
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      PPGL_EMBEDDING_PROVIDER: ollama
+      PPGL_EMBEDDING_OLLAMA_BASE_URL: http://ollama:11434
+      PPGL_EMBEDDING_OLLAMA_MODEL: ${PPGL_EMBEDDING_OLLAMA_MODEL:-bge-m3}
+      TOTALSEG_WEIGHTS_PATH: /models/totalsegmentator/nnunet/results
+      PPGL_V5_CHECKPOINT: /models/ppgl/weights/model_best.pth
       PPGL_GLIOMA_ENABLED: ${PPGL_GLIOMA_ENABLED:-false}
-      PPGL_GLIOMA_MODEL_DIR: /models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
+      PPGL_GLIOMA_MODEL_DIR: /var/lib/ppgl-assist/models/brain-glioma/nnUNetTrainer__nnUNetPlans__3d_fullres
       PPGL_GLIOMA_DEVICE: ${PPGL_GLIOMA_DEVICE:-cuda}
       PPGL_GPU_SYSTEM_RESERVE_MB: ${PPGL_GPU_SYSTEM_RESERVE_MB:-2048}
       PPGL_GPU_ORGAN_REQUIRED_MB: ${PPGL_GPU_ORGAN_REQUIRED_MB:-16384}
@@ -91,7 +98,7 @@ services:
       ollama:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python3.10 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\""]
       interval: 20s
       timeout: 5s
       retries: 6
